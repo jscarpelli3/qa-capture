@@ -2,6 +2,8 @@
 
 A zero-dependency, single-page browser utility for attaching contextual QA notes to page elements and exporting the result as a portable ZIP.
 
+The proposed secure hosted ingestion and integration architecture is documented in [`docs/hosted-relay-spec.md`](docs/hosted-relay-spec.md).
+
 ## Try it
 
 1. Open the page you want to review.
