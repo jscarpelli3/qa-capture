@@ -4,6 +4,7 @@ This is an implementation handoff for building an Agency Brain importer in the A
 
 Normative inputs:
 
+- [`installing-capture.md`](installing-capture.md) for hosting and installing the browser utility
 - [`archive-format.md`](archive-format.md)
 - [`qa-review-1.schema.json`](../schemas/qa-review-1.schema.json)
 - [`review.json`](../examples/qa-review-1/review.json)
@@ -12,6 +13,8 @@ Normative inputs:
 ## Goal
 
 Accept a QA Capture ZIP, validate it, and create an import batch containing one Agency Brain QA ticket per note. Preserve enough source context for a developer or coding agent to reproduce and resolve each item without reopening the ZIP.
+
+The capture script currently serves from `https://jscarpelli3.github.io/qa-capture/qa-capture.js`. Agency Brain does not need to host or execute that script in order to import an archive. If Agency Brain provides an installation screen, it should present the script-tag and bookmarklet instructions from `installing-capture.md` rather than duplicating an independently maintained URL.
 
 ## Expected importer interface
 
