@@ -1,0 +1,9 @@
+{
+  "schema": "qa-review/1",
+  "generator": {
+    "name": "QA Capture",
+    "version": "0.1.0",
+    "delivery": "console-script"
+  },
+  "reviewFile": "review.json"
+}

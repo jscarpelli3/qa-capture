@@ -4,6 +4,8 @@ A zero-dependency, single-page browser utility for attaching contextual QA notes
 
 The proposed secure hosted ingestion and integration architecture is documented in [`docs/hosted-relay-spec.md`](docs/hosted-relay-spec.md).
 
+Adapter authors should use the normative [`docs/archive-format.md`](docs/archive-format.md), [`schemas/qa-review-1.schema.json`](schemas/qa-review-1.schema.json), and example fixtures. The [`docs/agency-brain-adapter.md`](docs/agency-brain-adapter.md) brief describes mapping reviews into Agency Brain QA tickets and presenting their context in its UI.
+
 ## Try it
 
 1. Open the page you want to review.

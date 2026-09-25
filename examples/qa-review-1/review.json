@@ -1,0 +1,128 @@
+{
+  "schema": "qa-review/1",
+  "header": {
+    "id": "review_example_001",
+    "generator": {
+      "name": "QA Capture",
+      "version": "0.1.0",
+      "delivery": "console-script"
+    },
+    "reviewer": {
+      "name": "Example Reviewer"
+    },
+    "timing": {
+      "startedAt": "2026-09-25T18:55:00.000Z",
+      "exportedAt": "2026-09-25T19:15:00.000Z"
+    },
+    "platform": {
+      "page": {
+        "url": "https://staging.example.com/pricing",
+        "origin": "https://staging.example.com",
+        "path": "/pricing",
+        "title": "Pricing",
+        "language": "en",
+        "referrerOrigin": "https://staging.example.com"
+      },
+      "browser": {
+        "name": "Chrome",
+        "version": "140.0.0.0",
+        "userAgent": "Example user agent"
+      },
+      "operatingSystem": "MacIntel",
+      "locale": "en-US",
+      "timezone": "America/Chicago",
+      "online": true,
+      "touchPoints": 0,
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "outerWidth": 1512,
+        "outerHeight": 982,
+        "devicePixelRatio": 2,
+        "scrollX": 0,
+        "scrollY": 614,
+        "colorScheme": "dark",
+        "reducedMotion": false
+      }
+    },
+    "privacy": {
+      "excluded": [
+        "cookies",
+        "existing-site-web-storage",
+        "form-values",
+        "request-headers",
+        "request-bodies"
+      ]
+    }
+  },
+  "notes": [
+    {
+      "id": "note_example_001",
+      "sequence": 1,
+      "createdAt": "2026-09-25T19:02:11.000Z",
+      "kind": "copy",
+      "text": "Change this button to “Start a project” so it matches the navigation.",
+      "page": {
+        "url": "https://staging.example.com/pricing",
+        "origin": "https://staging.example.com",
+        "path": "/pricing",
+        "title": "Pricing",
+        "language": "en",
+        "referrerOrigin": "https://staging.example.com"
+      },
+      "target": {
+        "selector": "main > section.pricing-hero > a.button-primary",
+        "xpath": "/html/body/main/section[1]/a",
+        "tag": "a",
+        "attributes": {
+          "class": "button-primary",
+          "href": "https://staging.example.com/contact"
+        },
+        "text": "Get started",
+        "html": "<a class=\"button-primary\" href=\"/contact\">Get started</a>",
+        "rect": {
+          "viewport": { "x": 96, "y": 320, "width": 168, "height": 48 },
+          "document": { "x": 96, "y": 934, "width": 168, "height": 48 }
+        },
+        "styles": {
+          "display": "inline-flex",
+          "color": "rgb(255, 255, 255)",
+          "background-color": "rgb(25, 25, 25)",
+          "font-size": "16px",
+          "font-weight": "600"
+        },
+        "ancestors": [
+          { "tag": "section", "id": null, "classes": ["pricing-hero"] },
+          { "tag": "main", "id": "main-content", "classes": [] },
+          { "tag": "body", "id": null, "classes": ["page-pricing"] }
+        ]
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "outerWidth": 390,
+        "outerHeight": 844,
+        "devicePixelRatio": 3,
+        "scrollX": 0,
+        "scrollY": 614,
+        "colorScheme": "dark",
+        "reducedMotion": false
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "method": "GET",
+            "url": "https://staging.example.com/api/pricing",
+            "status": 500,
+            "durationMs": 218,
+            "error": null,
+            "at": "2026-09-25T19:02:02.000Z"
+          }
+        ]
+      },
+      "assets": []
+    }
+  ],
+  "assets": []
+}

@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jscarpelli3.github.io/qa-capture/schemas/qa-review-1.schema.json",
+  "title": "QA Capture Review",
+  "description": "Portable QA Capture review document, schema qa-review/1.",
+  "type": "object",
+  "required": ["schema", "header", "notes", "assets"],
+  "properties": {
+    "schema": { "const": "qa-review/1" },
+    "header": { "$ref": "#/$defs/header" },
+    "notes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/note" }
+    },
+    "assets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/asset" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "nullableString": { "type": ["string", "null"] },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version", "delivery"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "delivery": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "page": {
+      "type": "object",
+      "required": ["url", "origin", "path", "title", "language", "referrerOrigin"],
+      "properties": {
+        "url": { "type": ["string", "null"] },
+        "origin": { "type": "string" },
+        "path": { "type": "string" },
+        "title": { "type": "string" },
+        "language": { "$ref": "#/$defs/nullableString" },
+        "referrerOrigin": { "$ref": "#/$defs/nullableString" }
+      },
+      "additionalProperties": true
+    },
+    "viewport": {
+      "type": "object",
+      "required": ["width", "height", "outerWidth", "outerHeight", "devicePixelRatio", "scrollX", "scrollY", "colorScheme", "reducedMotion"],
+      "properties": {
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "outerWidth": { "type": "number", "minimum": 0 },
+        "outerHeight": { "type": "number", "minimum": 0 },
+        "devicePixelRatio": { "type": "number", "exclusiveMinimum": 0 },
+        "scrollX": { "type": "number" },
+        "scrollY": { "type": "number" },
+        "colorScheme": { "enum": ["light", "dark"] },
+        "reducedMotion": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "browser": {
+      "type": "object",
+      "required": ["name", "version", "userAgent"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "$ref": "#/$defs/nullableString" },
+        "userAgent": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "platform": {
+      "type": "object",
+      "required": ["page", "browser", "operatingSystem", "locale", "timezone", "online", "touchPoints", "viewport"],
+      "properties": {
+        "page": { "$ref": "#/$defs/page" },
+        "browser": { "$ref": "#/$defs/browser" },
+        "operatingSystem": { "$ref": "#/$defs/nullableString" },
+        "locale": { "$ref": "#/$defs/nullableString" },
+        "timezone": { "$ref": "#/$defs/nullableString" },
+        "online": { "type": "boolean" },
+        "touchPoints": { "type": "integer", "minimum": 0 },
+        "viewport": { "$ref": "#/$defs/viewport" }
+      },
+      "additionalProperties": true
+    },
+    "header": {
+      "type": "object",
+      "required": ["id", "generator", "reviewer", "timing", "platform", "privacy"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "generator": { "$ref": "#/$defs/generator" },
+        "reviewer": {
+          "type": "object",
+          "required": ["name"],
+          "properties": { "name": { "type": "string", "minLength": 1 } },
+          "additionalProperties": true
+        },
+        "timing": {
+          "type": "object",
+          "required": ["startedAt", "exportedAt"],
+          "properties": {
+            "startedAt": { "$ref": "#/$defs/dateTime" },
+            "exportedAt": { "$ref": "#/$defs/dateTime" }
+          },
+          "additionalProperties": true
+        },
+        "platform": { "$ref": "#/$defs/platform" },
+        "privacy": {
+          "type": "object",
+          "required": ["excluded"],
+          "properties": {
+            "excluded": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "rect": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "ancestor": {
+      "type": "object",
+      "required": ["tag", "id", "classes"],
+      "properties": {
+        "tag": { "type": "string" },
+        "id": { "$ref": "#/$defs/nullableString" },
+        "classes": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "target": {
+      "type": "object",
+      "required": ["selector", "xpath", "tag", "attributes", "text", "html", "rect", "styles", "ancestors"],
+      "properties": {
+        "selector": { "type": "string" },
+        "xpath": { "type": "string" },
+        "tag": { "type": "string" },
+        "attributes": { "type": "object", "additionalProperties": { "type": ["string", "null"] } },
+        "text": { "type": "string" },
+        "html": { "type": "string" },
+        "rect": {
+          "type": "object",
+          "required": ["viewport", "document"],
+          "properties": {
+            "viewport": { "$ref": "#/$defs/rect" },
+            "document": { "$ref": "#/$defs/rect" }
+          },
+          "additionalProperties": true
+        },
+        "styles": { "type": "object", "additionalProperties": { "type": "string" } },
+        "ancestors": { "type": "array", "items": { "$ref": "#/$defs/ancestor" } }
+      },
+      "additionalProperties": true
+    },
+    "consoleError": {
+      "type": "object",
+      "required": ["type", "message", "at"],
+      "properties": {
+        "type": { "type": "string" },
+        "message": { "type": "string" },
+        "source": { "$ref": "#/$defs/nullableString" },
+        "line": { "type": ["integer", "null"], "minimum": 0 },
+        "column": { "type": ["integer", "null"], "minimum": 0 },
+        "at": { "$ref": "#/$defs/dateTime" }
+      },
+      "additionalProperties": true
+    },
+    "failedRequest": {
+      "type": "object",
+      "required": ["method", "url", "status", "durationMs", "error", "at"],
+      "properties": {
+        "method": { "type": "string" },
+        "url": { "$ref": "#/$defs/nullableString" },
+        "status": { "type": ["integer", "null"], "minimum": 0, "maximum": 999 },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "error": { "$ref": "#/$defs/nullableString" },
+        "at": { "$ref": "#/$defs/dateTime" }
+      },
+      "additionalProperties": true
+    },
+    "diagnostics": {
+      "type": "object",
+      "required": ["consoleErrors", "failedRequests"],
+      "properties": {
+        "consoleErrors": { "type": "array", "items": { "$ref": "#/$defs/consoleError" } },
+        "failedRequests": { "type": "array", "items": { "$ref": "#/$defs/failedRequest" } }
+      },
+      "additionalProperties": true
+    },
+    "note": {
+      "type": "object",
+      "required": ["id", "sequence", "createdAt", "kind", "text", "page", "target", "viewport", "diagnostics", "assets"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "createdAt": { "$ref": "#/$defs/dateTime" },
+        "kind": { "enum": ["note", "bug", "copy", "design", "question"] },
+        "text": { "type": "string", "minLength": 1 },
+        "page": { "$ref": "#/$defs/page" },
+        "target": { "$ref": "#/$defs/target" },
+        "viewport": { "$ref": "#/$defs/viewport" },
+        "diagnostics": { "$ref": "#/$defs/diagnostics" },
+        "assets": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "captureWarnings": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "asset": {
+      "type": "object",
+      "required": ["id", "kind", "path", "mime", "width", "height"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "pattern": "^assets/[A-Za-z0-9._-]+$" },
+        "mime": { "enum": ["image/png", "image/jpeg", "image/webp"] },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    }
+  }
+}
