@@ -16,7 +16,7 @@ The Vercel-hosted control plane for QA Capture. The browser capture utility rema
 - Import `jscarpelli3/qa-capture`.
 - Set **Root Directory** to `apps/web`.
 - Add `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in every required environment.
-- Create a **Private** Blob store and connect it to the project. Vercel supplies `BLOB_READ_WRITE_TOKEN`.
+- Create a **Private** Blob store and connect it to the project. Vercel supplies `BLOB_STORE_ID` and authenticates deployments with an automatically rotated OIDC token; do not create a long-lived Blob write token.
 - Set production `NEXT_PUBLIC_APP_URL` to the final HTTPS application URL.
 
 The current slice includes Google OAuth entry/callback routes, cookie-backed Supabase sessions, a protected dashboard, a health endpoint, and the initial relational schema. Upload-token issuance is intentionally deferred until project/invitation authorization is implemented.
