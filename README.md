@@ -10,6 +10,8 @@ Start with [`docs/installing-capture.md`](docs/installing-capture.md) for hostin
 
 The invited-review hosted product is specified in [`docs/platform-product-spec.md`](docs/platform-product-spec.md). The runnable multi-review aggregator lives in [`packages/qa-aggregate`](packages/qa-aggregate) and is specified in [`docs/aggregator-spec.md`](docs/aggregator-spec.md).
 
+The hosted Next.js control plane is in [`apps/web`](apps/web). When importing this repository into Vercel, set the project's Root Directory to `apps/web`; its README contains the Supabase, Google OAuth, environment-variable, migration, and private Blob setup checklist.
+
 ## Aggregate several reviews
 
 With Node.js 20 or newer:
