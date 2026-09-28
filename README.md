@@ -6,6 +6,21 @@ The proposed secure hosted ingestion and integration architecture is documented 
 
 Start with [`docs/installing-capture.md`](docs/installing-capture.md) for hosting and installation. Adapter authors should use the normative [`docs/archive-format.md`](docs/archive-format.md), [`schemas/qa-review-1.schema.json`](schemas/qa-review-1.schema.json), and example fixtures. The [`docs/agency-brain-adapter.md`](docs/agency-brain-adapter.md) brief describes mapping reviews into Agency Brain QA tickets and presenting their context in its UI.
 
+The invited-review hosted product is specified in [`docs/platform-product-spec.md`](docs/platform-product-spec.md). The runnable multi-review aggregator lives in [`packages/qa-aggregate`](packages/qa-aggregate) and is specified in [`docs/aggregator-spec.md`](docs/aggregator-spec.md).
+
+## Aggregate several reviews
+
+With Node.js 20 or newer:
+
+```sh
+npm run aggregate -- \
+  --output ./combined-review \
+  --format html,json,markdown,csv,xlsx \
+  ./review-one.zip ./review-two.zip
+```
+
+The output is an offline searchable HTML report plus JSON, Markdown, CSV, Excel, and copied screenshot assets.
+
 ## Try it
 
 1. Open the page you want to review.

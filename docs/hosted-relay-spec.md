@@ -4,6 +4,8 @@ Status: Draft for implementation
 Schema target: `qa-review/1`  
 Initial platform: Vercel Functions, private Vercel Blob, and a relational database
 
+The developer signup, invitation, end-of-session Google verification, renderer, and destination product flow is specified in [`platform-product-spec.md`](platform-product-spec.md). This document remains the lower-level ingestion and delivery security specification.
+
 ## 1. Purpose
 
 The hosted relay receives QA Capture archives from browser-based review sessions, validates and sanitizes them, stores an approved canonical package, and optionally delivers that package to configured downstream systems.

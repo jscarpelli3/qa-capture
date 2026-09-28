@@ -1,0 +1,12 @@
+{
+  "name": "qa-capture-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "aggregate": "node packages/qa-aggregate/bin/qa-aggregate.mjs",
+    "test": "node --test packages/qa-aggregate/test/*.test.mjs"
+  }
+}

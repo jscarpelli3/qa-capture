@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jscarpelli3.github.io/qa-capture/schemas/qa-review-aggregate-1.schema.json",
+  "title": "QA Capture Review Aggregate",
+  "type": "object",
+  "required": ["schema", "id", "generatedAt", "summary", "sources", "notes", "assets"],
+  "properties": {
+    "schema": { "const": "qa-review-aggregate/1" },
+    "id": { "type": "string", "minLength": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "summary": {
+      "type": "object",
+      "required": ["reviewCount", "noteCount", "reviewerCount", "pageCount"],
+      "properties": {
+        "reviewCount": { "type": "integer", "minimum": 0 },
+        "noteCount": { "type": "integer", "minimum": 0 },
+        "reviewerCount": { "type": "integer", "minimum": 0 },
+        "pageCount": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["reviewId", "reviewer", "startedAt", "exportedAt", "origin", "noteCount", "sourceName", "archiveSha256", "generator"],
+        "properties": {
+          "reviewId": { "type": "string" },
+          "reviewer": { "type": "string" },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "exportedAt": { "type": "string", "format": "date-time" },
+          "origin": { "type": ["string", "null"] },
+          "noteCount": { "type": "integer", "minimum": 0 },
+          "sourceName": { "type": "string" },
+          "archiveSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "generator": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sourceKey", "sourceReviewId", "sourceNoteId", "sequence", "reviewer", "createdAt", "kind", "text", "page", "target", "viewport", "diagnostics", "captureWarnings", "assets"],
+        "properties": {
+          "sourceKey": { "type": "string" },
+          "sourceReviewId": { "type": "string" },
+          "sourceNoteId": { "type": "string" },
+          "sequence": { "type": "integer", "minimum": 1 },
+          "reviewer": { "type": "string" },
+          "reviewStartedAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "kind": { "type": "string" },
+          "text": { "type": "string" },
+          "page": { "type": "object" },
+          "target": { "type": "object" },
+          "viewport": { "type": "object" },
+          "diagnostics": { "type": "object" },
+          "captureWarnings": { "type": "array", "items": { "type": "string" } },
+          "assets": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": true
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "sourceReviewId", "sourceAssetId", "kind", "mime", "width", "height", "path"],
+        "properties": {
+          "id": { "type": "string" },
+          "sourceReviewId": { "type": "string" },
+          "sourceAssetId": { "type": "string" },
+          "kind": { "type": "string" },
+          "mime": { "enum": ["image/png", "image/jpeg", "image/webp"] },
+          "width": { "type": "integer", "minimum": 1 },
+          "height": { "type": "integer", "minimum": 1 },
+          "path": { "type": "string", "pattern": "^assets/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

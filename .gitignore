@@ -1,0 +1,4 @@
+node_modules/
+qa-aggregate-output/
+combined-review/
+.DS_Store
