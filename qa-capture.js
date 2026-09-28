@@ -1,11 +1,12 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.1.1";
+  const VERSION = "0.2.0";
   const SCHEMA = "qa-review/1";
   const GLOBAL_KEY = "__qaCapture";
   const STORAGE_KEY = "__qaCaptureSession_v1";
   const IDENTITY_KEY = "__qaCaptureIdentity_v1";
+  const installationContext = captureInstallationContext(document.currentScript);
 
   if (window[GLOBAL_KEY]) {
     window[GLOBAL_KEY].addNote();
@@ -59,6 +60,8 @@
       .actions .primary { background:#f5f1e8;color:#080808; }
       .hint { margin:8px 0 0;color:#aaa;font-size:11px; }
       .target { padding:9px;background:#181818;border:1px solid #444;border-radius:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px; }
+      .target-warning { display:none;margin:8px 0 0;padding:8px;border:1px solid #ff4d00;color:#ffd2bf;background:#261008;font-size:11px; }
+      .target-warning.show { display:block; }
       .types { display:flex;flex-wrap:wrap;gap:6px; }
       .type-pill { position:relative; }
       .type-pill input { position:absolute;opacity:0;pointer-events:none; }
@@ -89,6 +92,7 @@
       <section class="panel note" aria-label="Add QA note">
         <h2>Add note</h2>
         <div class="target"></div>
+        <p class="target-warning">Large area selected. That is okay, but choosing a smaller item may make the note easier to interpret.</p>
         <label>Type</label>
         <div class="types" role="radiogroup" aria-label="Note type">
           <label class="type-pill"><input type="radio" name="kind" value="note" checked><span>Note</span></label>
@@ -99,7 +103,7 @@
         </div>
         <label for="note-text">Feedback</label>
         <textarea id="note-text" placeholder="What should change?"></textarea>
-        <div class="actions"><button data-action="cancel-note">Cancel</button><button class="primary" data-action="save-note">Save note</button></div>
+        <div class="actions"><button data-action="reselect">Choose again</button><button data-action="cancel-note">Cancel</button><button class="primary" data-action="save-note">Save note</button></div>
       </section>
       <section class="panel info" aria-label="QA Capture information">
         <h2>QA Capture</h2>
@@ -125,12 +129,14 @@
   const outline = $(".outline");
   const notePanel = $(".panel.note");
   let pendingTarget = null;
+  let pendingClick = null;
 
   on(root, "click", async (event) => {
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (!action) return;
     if (action === "start") startReview();
     if (action === "select") toggleSelection();
+    if (action === "reselect") reselectTarget();
     if (action === "cancel-note") closeNote();
     if (action === "save-note") await saveNote();
     if (action === "export") await exportZip();
@@ -229,8 +235,9 @@
     event.stopPropagation();
     event.stopImmediatePropagation();
     pendingTarget = event.target;
+    pendingClick = captureClickContext(event, pendingTarget);
     toggleSelection(false);
-    $(".target").textContent = describeElement(pendingTarget);
+    renderPendingTarget();
     $("#note-text").value = "";
     openPanel("note");
     $("#note-text").focus();
@@ -243,7 +250,7 @@
       return;
     }
     const id = makeId("note");
-    const context = captureElement(pendingTarget);
+    const context = captureElement(pendingTarget, pendingClick);
     const note = {
       id,
       sequence: state.notes.length + 1,
@@ -271,6 +278,7 @@
     state.notes.push(note);
     persistSession();
     pendingTarget = null;
+    pendingClick = null;
     updatePins();
     openPanel(null);
     toast("Note saved");
@@ -278,10 +286,21 @@
 
   function closeNote() {
     pendingTarget = null;
+    pendingClick = null;
+    $(".target-warning").classList.remove("show");
     openPanel(null);
   }
 
-  function captureElement(element) {
+  function reselectTarget() {
+    pendingTarget = null;
+    pendingClick = null;
+    $(".target-warning").classList.remove("show");
+    openPanel(null);
+    toggleSelection(true);
+    toast("Choose a more specific element");
+  }
+
+  function captureElement(element, clickContext) {
     const rect = element.getBoundingClientRect();
     const styles = getComputedStyle(element);
     const attributes = {};
@@ -301,6 +320,7 @@
         document: roundRect({ x: rect.x + scrollX, y: rect.y + scrollY, width: rect.width, height: rect.height }),
       },
       styles: pickStyles(styles),
+      interaction: clickContext,
       ancestors: Array.from(ancestors(element, 5)).map((node) => ({
         tag: node.tagName.toLowerCase(),
         id: node.id || null,
@@ -317,6 +337,7 @@
       title: document.title,
       language: document.documentElement.lang || null,
       referrerOrigin: originOnly(document.referrer),
+      context: installationContext,
     };
   }
 
@@ -415,6 +436,7 @@
           online: navigator.onLine,
           touchPoints: navigator.maxTouchPoints || 0,
           viewport: captureViewport(),
+          project: installationContext,
         },
         privacy: {
           excluded: ["cookies", "existing-site-web-storage", "form-values", "request-headers", "request-bodies"],
@@ -529,6 +551,84 @@
     if (state.notes.length) updatePins();
   }
 
+  function renderPendingTarget() {
+    const rect = pendingTarget.getBoundingClientRect();
+    $(".target").textContent = `${describeElement(pendingTarget)} · ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+    const viewportArea = Math.max(1, innerWidth * innerHeight);
+    const selectedArea = Math.max(0, rect.width * rect.height);
+    const isLarge = selectedArea / viewportArea >= 0.4 || rect.width >= innerWidth * 0.9 && rect.height >= innerHeight * 0.3;
+    $(".target-warning").classList.toggle("show", isLarge);
+  }
+
+  function captureClickContext(event, selectedElement) {
+    const rect = selectedElement.getBoundingClientRect();
+    const clientX = Math.round(event.clientX);
+    const clientY = Math.round(event.clientY);
+    const hitElements = typeof document.elementsFromPoint === "function"
+      ? document.elementsFromPoint(event.clientX, event.clientY).filter((element) => element !== host && !host.contains(element))
+      : [selectedElement];
+
+    return {
+      pointer: {
+        viewport: { x: clientX, y: clientY },
+        document: { x: Math.round(event.clientX + scrollX), y: Math.round(event.clientY + scrollY) },
+        relativeToTarget: {
+          x: Math.round(event.clientX - rect.left),
+          y: Math.round(event.clientY - rect.top),
+          xRatio: roundRatio(event.clientX - rect.left, rect.width),
+          yRatio: roundRatio(event.clientY - rect.top, rect.height),
+        },
+      },
+      deepestElement: summarizeElement(hitElements[0] || selectedElement),
+      hitStack: uniqueElements(hitElements).slice(0, 8).map(summarizeElement),
+      nearbyDescendants: nearestDescendants(selectedElement, event.clientX, event.clientY),
+    };
+  }
+
+  function nearestDescendants(element, x, y) {
+    const candidates = Array.from(element.querySelectorAll("*")).slice(0, 2000)
+      .filter((node) => {
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      })
+      .map((node) => {
+        const rect = node.getBoundingClientRect();
+        const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0;
+        const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+        return { node, distance: Math.round(Math.hypot(dx, dy)), area: rect.width * rect.height };
+      })
+      .sort((a, b) => a.distance - b.distance || a.area - b.area);
+
+    return uniqueElements(candidates.map(({ node }) => node)).slice(0, 5).map((node) => {
+      const summary = summarizeElement(node);
+      const rect = node.getBoundingClientRect();
+      const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0;
+      const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+      return { ...summary, distanceFromClick: Math.round(Math.hypot(dx, dy)) };
+    });
+  }
+
+  function summarizeElement(element) {
+    const rect = element.getBoundingClientRect();
+    return {
+      selector: cssSelector(element),
+      tag: element.tagName.toLowerCase(),
+      id: element.id || null,
+      classes: Array.from(element.classList).slice(0, 8),
+      text: truncate((element.innerText || element.textContent || "").trim(), 160),
+      rect: roundRect(rect),
+    };
+  }
+
+  function uniqueElements(elements) {
+    return Array.from(new Set(elements));
+  }
+
+  function roundRatio(value, total) {
+    if (!total) return null;
+    return Math.round(Math.max(0, Math.min(1, value / total)) * 1000) / 1000;
+  }
+
   function drawOutline(element) {
     const rect = element.getBoundingClientRect();
     Object.assign(outline.style, { display: "block", left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
@@ -620,6 +720,45 @@
     const token = match?.[0] || "";
     const name = token.startsWith("Edg/") ? "Edge" : token.startsWith("OPR/") ? "Opera" : token.startsWith("Firefox/") ? "Firefox" : token.startsWith("Chrome/") ? "Chrome" : token.includes("Safari") ? "Safari" : "Unknown";
     return { name, version: match?.[1] || null, userAgent: ua };
+  }
+
+  function captureInstallationContext(script) {
+    const allowedKeys = ["project", "environment", "build", "commit", "deployment", "cmsId", "template"];
+    const result = {};
+    const globalContext = window.QA_CAPTURE_CONTEXT;
+    if (globalContext && typeof globalContext === "object" && !Array.isArray(globalContext)) {
+      for (const key of allowedKeys) {
+        if (["string", "number", "boolean"].includes(typeof globalContext[key])) result[key] = truncate(globalContext[key], 300);
+      }
+    }
+
+    const dataMap = {
+      qaProject: "project",
+      qaEnvironment: "environment",
+      qaBuild: "build",
+      qaCommit: "commit",
+      qaDeployment: "deployment",
+      qaCmsId: "cmsId",
+      qaTemplate: "template",
+    };
+    for (const [dataKey, contextKey] of Object.entries(dataMap)) {
+      if (script?.dataset?.[dataKey]) result[contextKey] = truncate(script.dataset[dataKey], 300);
+    }
+
+    const metaMap = {
+      "qa:project": "project",
+      "qa:environment": "environment",
+      "qa:build": "build",
+      "qa:commit": "commit",
+      "qa:deployment": "deployment",
+      "qa:cms-id": "cmsId",
+      "qa:template": "template",
+    };
+    for (const [metaName, contextKey] of Object.entries(metaMap)) {
+      const content = document.querySelector(`meta[name="${metaName}"]`)?.content;
+      if (content) result[contextKey] = truncate(content, 300);
+    }
+    return result;
   }
 
   function sanitizeHtml(element) {

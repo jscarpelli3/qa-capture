@@ -1,7 +1,7 @@
 # Installing and Running QA Capture
 
 Status: Current prototype deployment  
-Capture script version: `0.1.1`
+Capture script version: `0.2.0`
 
 This document describes how the browser capture utility itself is hosted, installed, activated, and removed. For ZIP parsing, see [`archive-format.md`](archive-format.md).
 
@@ -126,13 +126,32 @@ add_action( 'wp_enqueue_scripts', function () {
         return;
     }
 
-    wp_enqueue_script(
+    $content_id = get_queried_object_id();
+    $theme      = wp_get_theme();
+
+    wp_register_script(
         'qa-capture',
         'https://jscarpelli3.github.io/qa-capture/qa-capture.js',
         array(),
-        '0.1.1',
+        '0.2.0',
         false
     );
+
+    wp_add_inline_script(
+        'qa-capture',
+        'window.QA_CAPTURE_CONTEXT = ' . wp_json_encode(
+            array(
+                'project'     => get_bloginfo( 'name' ),
+                'environment' => wp_get_environment_type(),
+                'build'       => $theme->get( 'Version' ),
+                'cmsId'       => $content_id ? 'post-' . $content_id : '',
+                'template'    => $content_id ? ( get_page_template_slug( $content_id ) ?: 'default' ) : '',
+            )
+        ) . ';',
+        'before'
+    );
+
+    wp_enqueue_script( 'qa-capture' );
 } );
 ```
 
@@ -206,6 +225,27 @@ window.__qaCapture.reset();   // erase the saved session and start over
 9. Import the ZIP into a compatible adapter such as Agency Brain.
 
 Each note records its own `window.innerWidth`, `window.innerHeight`, outer-window dimensions, device-pixel ratio, and scroll position at capture time. Resizing between notes is therefore preserved.
+
+## Optional project context
+
+An installation can attach stack-agnostic build and content hints without changing the capture script. Set a global before loading it:
+
+```html
+<script>
+window.QA_CAPTURE_CONTEXT = {
+  project: "Client website",
+  environment: "staging",
+  build: "2026.09.28.1",
+  commit: "abc1234",
+  deployment: "preview-482",
+  cmsId: "page-305",
+  template: "templates/our-story.php"
+};
+</script>
+<script src="https://jscarpelli3.github.io/qa-capture/qa-capture.js"></script>
+```
+
+All fields are optional. Values are capped at 300 characters and stored at `header.platform.project` and in each note's `page.context`. The script also recognizes equivalent `qa:*` meta tags and `data-qa-*` attributes. Do not put secrets or access tokens in this context.
 
 ## Privacy and security boundaries
 

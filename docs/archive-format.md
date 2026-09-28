@@ -1,7 +1,7 @@
 # QA Capture Archive Format
 
 Status: Normative for `qa-review/1`  
-Current generator: QA Capture `0.1.0`
+Current generator: QA Capture `0.2.0`
 
 This document defines the portable contract consumed by importers, renderers, ticket mappers, and AI preparation tools. Consumers must branch on the top-level `schema` value and must not infer a schema version from the generator version.
 
@@ -36,7 +36,7 @@ An adapter must:
   "schema": "qa-review/1",
   "generator": {
     "name": "QA Capture",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "delivery": "console-script"
   },
   "reviewFile": "review.json"
@@ -80,6 +80,7 @@ The manifest identifies how to locate and interpret the primary document. It is 
 | `title` | string | Document title. |
 | `language` | string or null | Document language. |
 | `referrerOrigin` | string or null | Referrer origin only; no referrer path. |
+| `context` | object | Optional project, environment, build, commit, deployment, CMS record, and template hints supplied by the installation. |
 
 `header.platform.browser` contains a best-effort browser name and version plus the user-agent string. `operatingSystem` is the browser's platform value and should be treated as a label, not a reliably detected OS.
 
@@ -144,10 +145,13 @@ Adapters should display `url` as a reproduction link only after confirming that 
 | `rect.document` | rect | Element bounds relative to the document at capture. |
 | `styles` | object | Curated computed CSS properties as strings. |
 | `ancestors` | array | Up to five nearest DOM ancestors. |
+| `interaction` | object | Raw click evidence: viewport/document coordinates, position relative to the target, deepest hit element, hit stack, and nearby descendants. |
 
 A rectangle has numeric `x`, `y`, `width`, and `height` fields expressed in CSS pixels.
 
 Selectors are evidence, not durable database identifiers. A mapper should store selector, XPath, target text, and ancestors together so a human or agent can relocate an element after the DOM changes.
+
+`target.interaction` is optional for compatibility with earlier captures. Its `pointer.relativeToTarget` ratios range from `0` to `1`. Candidate elements are hints rather than assertions: adapters should use them to explain ambiguous container selections, not silently replace the selected target.
 
 ### Capture-time viewport
 

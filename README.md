@@ -2,7 +2,7 @@
 
 A zero-dependency, single-page browser utility for attaching contextual QA notes to page elements and exporting the result as a portable ZIP.
 
-Current capture script version: `0.1.1`.
+Current capture script version: `0.2.0`.
 
 The proposed secure hosted ingestion and integration architecture is documented in [`docs/hosted-relay-spec.md`](docs/hosted-relay-spec.md).
 
@@ -86,7 +86,7 @@ qa-review-<timestamp>.zip
 - Viewport, device-pixel ratio, color scheme, motion preference, and touch capability
 - An explicit list of data excluded for privacy
 
-Each note includes its text and type, page context, element selector and XPath, sanitized markup, visible text, selected computed styles, geometry, ancestors, viewport state, recent script errors, and recent failed Fetch/XHR requests.
+Each note includes its text and type, page context, element selector and XPath, sanitized markup, visible text, selected computed styles, geometry, ancestors, exact click position, likely elements near the click, viewport state, recent script errors, and recent failed Fetch/XHR requests.
 
 Element images are best-effort. Browser security rules, external assets, advanced CSS, canvas, video, and iframes may prevent or reduce fidelity. A note still saves when image capture fails.
 

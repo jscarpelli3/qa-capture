@@ -40,7 +40,8 @@
         "path": { "type": "string" },
         "title": { "type": "string" },
         "language": { "$ref": "#/$defs/nullableString" },
-        "referrerOrigin": { "$ref": "#/$defs/nullableString" }
+        "referrerOrigin": { "$ref": "#/$defs/nullableString" },
+        "context": { "$ref": "#/$defs/projectContext" }
       },
       "additionalProperties": true
     },
@@ -70,6 +71,19 @@
       },
       "additionalProperties": true
     },
+    "projectContext": {
+      "type": "object",
+      "properties": {
+        "project": { "type": "string", "maxLength": 300 },
+        "environment": { "type": "string", "maxLength": 300 },
+        "build": { "type": "string", "maxLength": 300 },
+        "commit": { "type": "string", "maxLength": 300 },
+        "deployment": { "type": "string", "maxLength": 300 },
+        "cmsId": { "type": "string", "maxLength": 300 },
+        "template": { "type": "string", "maxLength": 300 }
+      },
+      "additionalProperties": false
+    },
     "platform": {
       "type": "object",
       "required": ["page", "browser", "operatingSystem", "locale", "timezone", "online", "touchPoints", "viewport"],
@@ -81,7 +95,8 @@
         "timezone": { "$ref": "#/$defs/nullableString" },
         "online": { "type": "boolean" },
         "touchPoints": { "type": "integer", "minimum": 0 },
-        "viewport": { "$ref": "#/$defs/viewport" }
+        "viewport": { "$ref": "#/$defs/viewport" },
+        "project": { "$ref": "#/$defs/projectContext" }
       },
       "additionalProperties": true
     },
@@ -139,6 +154,59 @@
       },
       "additionalProperties": true
     },
+    "elementSummary": {
+      "type": "object",
+      "required": ["selector", "tag", "id", "classes", "text", "rect"],
+      "properties": {
+        "selector": { "type": "string" },
+        "tag": { "type": "string" },
+        "id": { "$ref": "#/$defs/nullableString" },
+        "classes": { "type": "array", "items": { "type": "string" } },
+        "text": { "type": "string" },
+        "rect": { "$ref": "#/$defs/rect" },
+        "distanceFromClick": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "interaction": {
+      "type": "object",
+      "required": ["pointer", "deepestElement", "hitStack", "nearbyDescendants"],
+      "properties": {
+        "pointer": {
+          "type": "object",
+          "required": ["viewport", "document", "relativeToTarget"],
+          "properties": {
+            "viewport": { "$ref": "#/$defs/point" },
+            "document": { "$ref": "#/$defs/point" },
+            "relativeToTarget": {
+              "type": "object",
+              "required": ["x", "y", "xRatio", "yRatio"],
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "xRatio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+                "yRatio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        },
+        "deepestElement": { "$ref": "#/$defs/elementSummary" },
+        "hitStack": { "type": "array", "items": { "$ref": "#/$defs/elementSummary" } },
+        "nearbyDescendants": { "type": "array", "items": { "$ref": "#/$defs/elementSummary" } }
+      },
+      "additionalProperties": true
+    },
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
     "target": {
       "type": "object",
       "required": ["selector", "xpath", "tag", "attributes", "text", "html", "rect", "styles", "ancestors"],
@@ -159,7 +227,8 @@
           "additionalProperties": true
         },
         "styles": { "type": "object", "additionalProperties": { "type": "string" } },
-        "ancestors": { "type": "array", "items": { "$ref": "#/$defs/ancestor" } }
+        "ancestors": { "type": "array", "items": { "$ref": "#/$defs/ancestor" } },
+        "interaction": { "$ref": "#/$defs/interaction" }
       },
       "additionalProperties": true
     },
