@@ -1,7 +1,7 @@
 # Installing and Running QA Capture
 
 Status: Current prototype deployment  
-Capture script version: `0.1.0`
+Capture script version: `0.1.1`
 
 This document describes how the browser capture utility itself is hosted, installed, activated, and removed. For ZIP parsing, see [`archive-format.md`](archive-format.md).
 
@@ -130,7 +130,7 @@ add_action( 'wp_enqueue_scripts', function () {
         'qa-capture',
         'https://jscarpelli3.github.io/qa-capture/qa-capture.js',
         array(),
-        '0.1.0',
+        '0.1.1',
         false
     );
 } );

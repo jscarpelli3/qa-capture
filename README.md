@@ -2,6 +2,8 @@
 
 A zero-dependency, single-page browser utility for attaching contextual QA notes to page elements and exporting the result as a portable ZIP.
 
+Current capture script version: `0.1.1`.
+
 The proposed secure hosted ingestion and integration architecture is documented in [`docs/hosted-relay-spec.md`](docs/hosted-relay-spec.md).
 
 Start with [`docs/installing-capture.md`](docs/installing-capture.md) for hosting and installation. Adapter authors should use the normative [`docs/archive-format.md`](docs/archive-format.md), [`schemas/qa-review-1.schema.json`](schemas/qa-review-1.schema.json), and example fixtures. The [`docs/agency-brain-adapter.md`](docs/agency-brain-adapter.md) brief describes mapping reviews into Agency Brain QA tickets and presenting their context in its UI.
@@ -28,6 +30,8 @@ The output is an offline searchable HTML report plus JSON, Markdown, CSV, Excel,
 3. Copy all of `qa-capture.js`, paste it into the console, and run it.
 4. Enter your name, select **Start review**, and add notes.
 5. Select **Export ZIP** when finished.
+
+Click the note count to review all saved notes. Clicking a numbered pin opens the saved-note list focused on that note.
 
 Review data is saved under the utility's own key in `sessionStorage`. On another page of the same origin, run the script again and the current review will be restored automatically. A full navigation removes the injected interface itself, so this console-delivered prototype must still be re-run on each page.
 

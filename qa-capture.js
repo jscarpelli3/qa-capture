@@ -1,10 +1,11 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.1.0";
+  const VERSION = "0.1.1";
   const SCHEMA = "qa-review/1";
   const GLOBAL_KEY = "__qaCapture";
   const STORAGE_KEY = "__qaCaptureSession_v1";
+  const IDENTITY_KEY = "__qaCaptureIdentity_v1";
 
   if (window[GLOBAL_KEY]) {
     window[GLOBAL_KEY].addNote();
@@ -38,14 +39,15 @@
       .qa { color:#f5f1e8; font:13px/1.45 ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
       button, input, textarea, select { font:inherit; }
       button { cursor:pointer; }
-      .toolbar { position:fixed;right:18px;bottom:18px;display:flex;gap:7px;align-items:center;padding:7px;background:#080808;border:1px solid #f5f1e8;border-radius:3px;box-shadow:6px 6px 0 #f5f1e8;pointer-events:auto; }
+      .toolbar { position:fixed;right:18px;bottom:18px;display:flex;gap:7px;align-items:center;padding:7px;background:#080808;border:1px solid #f5f1e8;border-radius:3px;box-shadow:0 12px 35px #0009;pointer-events:auto; }
       .toolbar button { border:1px solid #f5f1e8;border-radius:2px;padding:8px 11px;background:#f5f1e8;color:#080808;font-weight:700;text-transform:uppercase;letter-spacing:.03em; }
       .toolbar button:hover { background:#fff; }
       .toolbar button.primary { background:#080808;color:#f5f1e8; }
       .toolbar button.active { background:#f5f1e8;color:#080808; }
-      .count { color:#fff;padding:0 5px;white-space:nowrap; }
+      .toolbar .count { border:0;background:transparent;color:#fff;padding:8px 5px;white-space:nowrap;text-transform:none;letter-spacing:0;font-weight:500; }
+      .toolbar .count:hover { background:#222;color:#fff; }
       .outline { display:none;position:fixed;border:2px solid #ff4d00;background:#ff4d001a;pointer-events:none; }
-      .panel { display:none;position:fixed;right:18px;bottom:76px;width:min(380px,calc(100vw - 36px));max-height:calc(100vh - 100px);overflow:auto;padding:18px;background:#080808;border:1px solid #f5f1e8;border-radius:3px;box-shadow:7px 7px 0 #f5f1e8;pointer-events:auto; }
+      .panel { display:none;position:fixed;right:18px;bottom:76px;width:min(380px,calc(100vw - 36px));max-height:calc(100vh - 100px);overflow:auto;padding:18px;background:#080808;border:1px solid #f5f1e8;border-radius:3px;box-shadow:0 18px 50px #000a;pointer-events:auto; }
       .panel.open { display:block; }
       h2 { margin:0 0 14px;font-size:15px;text-transform:uppercase;letter-spacing:.08em; }
       label { display:block;margin:12px 0 6px;font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.06em; }
@@ -63,6 +65,12 @@
       .type-pill span { display:block;padding:6px 9px;border:1px solid #777;border-radius:999px;color:#bbb;cursor:pointer;text-transform:uppercase;font-size:10px;font-weight:700;letter-spacing:.05em; }
       .type-pill input:checked + span { background:#f5f1e8;border-color:#f5f1e8;color:#080808; }
       .type-pill input:focus-visible + span { outline:2px solid #ff4d00;outline-offset:2px; }
+      .note-list { display:grid;gap:8px; }
+      .note-list-item { width:100%;padding:11px;border:1px solid #555;border-radius:2px;background:#111;color:#f5f1e8;text-align:left; }
+      .note-list-item:hover, .note-list-item.focused { border-color:#ff4d00;background:#19110e; }
+      .note-list-meta { display:flex;justify-content:space-between;gap:8px;margin-bottom:5px;color:#aaa;font-size:10px;text-transform:uppercase; }
+      .note-list-text { display:block;font:13px/1.45 ui-sans-serif,system-ui,sans-serif; }
+      .note-list-page { display:block;margin-top:6px;color:#888;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
       .pins { position:fixed;inset:0;pointer-events:none; }
       .pin { position:absolute;width:25px;height:25px;border:1px solid #f5f1e8;border-radius:50%;background:#080808;color:#f5f1e8;box-shadow:2px 2px 0 #f5f1e8;font:bold 11px/21px ui-monospace;text-align:center;pointer-events:auto; }
       .toast { display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:9px 13px;border:1px solid #f5f1e8;border-radius:2px;background:#080808;color:#f5f1e8;box-shadow:4px 4px 0 #f5f1e8; }
@@ -98,9 +106,14 @@
         <p>This tool records your notes and ordinary page context. It does not read cookies, existing site storage, form values, request bodies, or request headers.</p>
         <div class="actions"><button data-action="close-info">Close</button><button data-action="destroy">Remove tool</button></div>
       </section>
+      <section class="panel review-notes" aria-label="Saved QA notes">
+        <h2>Saved notes</h2>
+        <div class="note-list"></div>
+        <div class="actions"><button data-action="close-notes">Close</button></div>
+      </section>
       <div class="toolbar" hidden>
         <button data-action="select" class="primary">＋ Add note</button>
-        <span class="count">0 notes</span>
+        <button data-action="list" class="count" title="View saved notes">0 notes</button>
         <button data-action="info" aria-label="About QA Capture">?</button>
         <button data-action="export">Export ZIP</button>
       </div>
@@ -121,6 +134,9 @@
     if (action === "cancel-note") closeNote();
     if (action === "save-note") await saveNote();
     if (action === "export") await exportZip();
+    if (action === "list") renderNotesPanel();
+    if (action === "view-note") renderNotesPanel(event.target.closest("[data-note-id]")?.dataset.noteId);
+    if (action === "close-notes") openPanel(null);
     if (action === "info") openPanel("info");
     if (action === "close-info") openPanel(null);
     if (action === "destroy") destroy();
@@ -158,6 +174,8 @@
     reset: resetSession,
     getData: buildReview,
   };
+
+  updatePins();
 
   if (state.reviewer) {
     $("#reviewer").value = state.reviewer;
@@ -318,6 +336,15 @@
 
   function persistSession() {
     try {
+      sessionStorage.setItem(IDENTITY_KEY, JSON.stringify({
+        id: state.id,
+        startedAt: state.startedAt,
+        reviewer: state.reviewer,
+      }));
+    } catch (error) {
+      console.warn("QA Capture could not persist reviewer identity.", error);
+    }
+    try {
       const assets = state.assets.map((asset) => ({
         ...asset,
         bytes: bytesToBase64(asset.bytes),
@@ -337,11 +364,17 @@
 
   function restoreSession() {
     try {
+      const identity = JSON.parse(sessionStorage.getItem(IDENTITY_KEY) || "null");
+      if (identity) {
+        state.id = identity.id || state.id;
+        state.startedAt = identity.startedAt || state.startedAt;
+        state.reviewer = identity.reviewer || "";
+      }
       const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null");
       if (!saved || !Array.isArray(saved.notes)) return;
       state.id = saved.id || state.id;
       state.startedAt = saved.startedAt || state.startedAt;
-      state.reviewer = saved.reviewer || "";
+      state.reviewer = saved.reviewer || state.reviewer;
       state.notes = saved.notes;
       state.assets = (saved.assets || []).map((asset) => ({
         ...asset,
@@ -449,11 +482,46 @@
       pin.className = "pin";
       pin.textContent = note.sequence;
       pin.title = note.text;
+      pin.dataset.action = "view-note";
+      pin.dataset.noteId = note.id;
       pin.style.left = `${note.target.rect.document.x - scrollX}px`;
       pin.style.top = `${note.target.rect.document.y - scrollY}px`;
       pins.appendChild(pin);
     }
     $(".count").textContent = `${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"}`;
+  }
+
+  function renderNotesPanel(focusId = null) {
+    const list = $(".note-list");
+    list.textContent = "";
+    if (!state.notes.length) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = "No notes have been saved yet.";
+      list.appendChild(empty);
+    }
+    for (const note of state.notes) {
+      const item = document.createElement("article");
+      item.className = `note-list-item${note.id === focusId ? " focused" : ""}`;
+      item.dataset.noteId = note.id;
+      const meta = document.createElement("span");
+      meta.className = "note-list-meta";
+      const sequence = document.createElement("span");
+      sequence.textContent = `#${note.sequence} · ${note.kind}`;
+      const viewport = document.createElement("span");
+      viewport.textContent = `${note.viewport?.width ?? "?"}×${note.viewport?.height ?? "?"}`;
+      meta.append(sequence, viewport);
+      const text = document.createElement("span");
+      text.className = "note-list-text";
+      text.textContent = note.text;
+      const page = document.createElement("span");
+      page.className = "note-list-page";
+      page.textContent = note.page?.path || note.page?.url || "Unknown page";
+      item.append(meta, text, page);
+      list.appendChild(item);
+    }
+    openPanel("review-notes");
+    if (focusId) list.querySelector(`[data-note-id="${CSS.escape(focusId)}"]`)?.scrollIntoView({ block: "nearest" });
   }
 
   function refreshOverlay() {
@@ -489,6 +557,7 @@
 
   function resetSession() {
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(IDENTITY_KEY);
     state.id = makeId("review");
     state.startedAt = new Date().toISOString();
     state.reviewer = "";
