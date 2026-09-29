@@ -1,6 +1,6 @@
-# QA Capture web application
+# QAWELL web application
 
-The Vercel-hosted control plane for QA Capture. The browser capture utility remains published separately from the repository root through GitHub Pages.
+The Vercel-hosted control plane for QAWELL. The browser capture utility remains published separately from the repository root through GitHub Pages.
 
 ## Local setup
 

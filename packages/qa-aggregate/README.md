@@ -1,6 +1,6 @@
 # `@qa-capture/aggregate`
 
-Dependency-free Node.js tooling for validating and combining multiple QA Capture ZIP archives.
+Dependency-free Node.js tooling for validating and combining multiple QAWELL ZIP archives.
 
 ## Run from this repository
 

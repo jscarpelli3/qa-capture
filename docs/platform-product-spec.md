@@ -1,4 +1,4 @@
-# QA Capture Platform Product Specification
+# QAWELL Platform Product Specification
 
 Status: Draft for staged implementation  
 Date: 2026-09-27  
@@ -11,7 +11,7 @@ Related specifications:
 
 ## 1. Product definition
 
-QA Capture lets a developer install a review widget on a staging or preview site, invite specific reviewers by email, and receive structured, verified review sessions. Reviewers annotate the live site without creating an account first. They verify their invited Google identity only when they send the finished review.
+QAWELL lets a developer install a review widget on a staging or preview site, invite specific reviewers by email, and receive structured, verified review sessions. Reviewers annotate the live site without creating an account first. They verify their invited Google identity only when they send the finished review.
 
 The service stores a validated canonical ZIP for every accepted review and optionally renders or delivers that review to configured destinations.
 
@@ -21,7 +21,7 @@ One sentence:
 
 ## 2. Product boundaries
 
-QA Capture owns:
+QAWELL owns:
 
 - Project setup and installation instructions
 - Reviewer invitations
@@ -33,7 +33,7 @@ QA Capture owns:
 - Delivery to configured integrations
 - Delivery audit history and retries
 
-QA Capture does not initially own:
+QAWELL does not initially own:
 
 - General project management
 - Ticket status and assignment workflows
@@ -86,7 +86,7 @@ Public capture distribution
 ├── npm package (later)
 └── WordPress plugin (later)
 
-QA Capture application
+QAWELL application
 ├── Google-authenticated developer dashboard
 ├── Project and origin configuration
 ├── Invitation creation and email delivery
@@ -233,7 +233,7 @@ The invitation link places its secret in the URL fragment:
 https://staging.example.com/#qa-invite=<random-secret>
 ```
 
-The fragment is not sent to the staging server in the initial HTTP request. The widget exchanges it with QA Capture and removes it from the visible URL.
+The fragment is not sent to the staging server in the initial HTTP request. The widget exchanges it with QAWELL and removes it from the visible URL.
 
 ### 6.3 Invitation statuses
 
@@ -267,7 +267,7 @@ The transactional email includes:
 - Support contact
 - Privacy summary
 
-It must not include downstream integration credentials or QA Capture administrative access.
+It must not include downstream integration credentials or QAWELL administrative access.
 
 ## 7. Reviewer activation and local capture
 
@@ -357,8 +357,8 @@ An emergency **Save recovery copy** action may appear only after repeated submis
 
 The reviewed staging page must never navigate to Google.
 
-1. A user click opens a first-party popup on the QA Capture application origin.
-2. QA Capture requests Google account selection.
+1. A user click opens a first-party popup on the QAWELL application origin.
+2. QAWELL requests Google account selection.
 3. The backend completes the authorization-code flow and verifies the identity.
 4. The backend compares the verified email to the invitation.
 5. The backend creates a single-use handoff code.
@@ -475,7 +475,7 @@ Renderers convert canonical data into representations. Destinations transport re
 
 ### Destinations
 
-- QA Capture dashboard
+- QAWELL dashboard
 - Google Drive
 - Google Sheets
 - Agency Brain

@@ -13,7 +13,7 @@ async function exampleArchive() {
   ]);
 }
 
-test("parses and aggregates a valid QA Capture archive", async () => {
+test("parses and aggregates a valid QAWELL archive", async () => {
   const parsed = parseReviewArchive(await exampleArchive(), "example.zip");
   const aggregate = aggregateReviews([parsed]);
   assert.equal(aggregate.schema, "qa-review-aggregate/1");

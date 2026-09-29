@@ -12,7 +12,7 @@ Normative inputs:
 
 ## Goal
 
-Accept a QA Capture ZIP, validate it, and create an import batch containing one Agency Brain QA ticket per note. Preserve enough source context for a developer or coding agent to reproduce and resolve each item without reopening the ZIP.
+Accept a QAWELL ZIP, validate it, and create an import batch containing one Agency Brain QA ticket per note. Preserve enough source context for a developer or coding agent to reproduce and resolve each item without reopening the ZIP.
 
 The capture script currently serves from `https://jscarpelli3.github.io/qa-capture/qa-capture.js`. Agency Brain does not need to host or execute that script in order to import an archive. If Agency Brain provides an installation screen, it should present the script-tag and bookmarklet instructions from `installing-capture.md` rather than duplicating an independently maintained URL.
 
@@ -81,7 +81,7 @@ Recommended duplicate behavior:
 
 ## Ticket field mapping
 
-| QA Capture source | Agency Brain semantic field | Rule |
+| QAWELL source | Agency Brain semantic field | Rule |
 | --- | --- | --- |
 | `note.id` | External note ID | Preserve exactly. |
 | `header.id` | External review ID/import batch | Preserve exactly. |
@@ -139,7 +139,7 @@ If Agency Brain supports a JSON column, retain a normalized source object:
   "noteId": "note_...",
   "sequence": 1,
   "generator": {
-    "name": "QA Capture",
+    "name": "QAWELL",
     "version": "0.1.0",
     "delivery": "console-script"
   },
@@ -286,7 +286,7 @@ Never partially create tickets and silently stop. Use a transaction or record an
 ## Suggested prompt for Claude in the Agency Brain repository
 
 ```text
-Implement a QA Capture ZIP importer using the contract in the attached
+Implement a QAWELL ZIP importer using the contract in the attached
 archive-format.md, qa-review-1.schema.json, example manifest/review fixtures,
 and agency-brain-adapter.md. First inspect Agency Brain's existing project,
 QA-ticket, asset-storage, authorization, and UI conventions. Map one source

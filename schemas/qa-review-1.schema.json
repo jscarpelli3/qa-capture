@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://jscarpelli3.github.io/qa-capture/schemas/qa-review-1.schema.json",
-  "title": "QA Capture Review",
-  "description": "Portable QA Capture review document, schema qa-review/1.",
+  "title": "QAWELL Review",
+  "description": "Portable QAWELL review document, schema qa-review/1.",
   "type": "object",
   "required": ["schema", "header", "notes", "assets"],
   "properties": {

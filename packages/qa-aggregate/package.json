@@ -1,7 +1,7 @@
 {
   "name": "@qa-capture/aggregate",
   "version": "0.1.0",
-  "description": "Validate and aggregate QA Capture archives into portable reports.",
+  "description": "Validate and aggregate QAWELL archives into portable reports.",
   "type": "module",
   "bin": {
     "qa-aggregate": "bin/qa-aggregate.mjs"

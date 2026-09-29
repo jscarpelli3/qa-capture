@@ -1,4 +1,4 @@
-# QA Capture console prototype
+# QAWELL console prototype
 
 A zero-dependency, single-page browser utility for attaching contextual QA notes to page elements and exporting the result as a portable ZIP.
 
@@ -61,9 +61,9 @@ The target site's Content Security Policy or CORS policy may prevent this loader
 
 Clicking the bookmarklet always begins the add-note flow:
 
-- On the first run, QA Capture asks for the reviewer's name and then activates element selection.
+- On the first run, QAWELL asks for the reviewer's name and then activates element selection.
 - On later same-origin pages, it restores the current session and activates selection immediately.
-- If QA Capture is already running on the page, clicking the bookmarklet activates selection without loading it again.
+- If QAWELL is already running on the page, clicking the bookmarklet activates selection without loading it again.
 
 The bookmarklet must be clicked again after each full navigation. Content Security Policy can prevent remotely hosted scripts from loading; manually pasting the complete script remains the prototype fallback.
 
@@ -94,7 +94,7 @@ Element images are best-effort. Browser security rules, external assets, advance
 
 ## Privacy boundaries
 
-QA Capture does not read or export:
+QAWELL does not read or export:
 
 - Cookies
 - Existing site data in `localStorage`, `sessionStorage`, or IndexedDB

@@ -82,7 +82,7 @@
     <div class="qa">
       <div class="pins"></div>
       <div class="outline"></div>
-      <section class="panel setup open" aria-label="QA Capture setup">
+      <section class="panel setup open" aria-label="QAWELL setup">
         <h2>Start a QA review</h2>
         <label for="reviewer">Your name</label>
         <input id="reviewer" autocomplete="name" placeholder="Jane Reviewer">
@@ -105,8 +105,8 @@
         <textarea id="note-text" placeholder="What should change?"></textarea>
         <div class="actions"><button data-action="reselect">Choose again</button><button data-action="cancel-note">Cancel</button><button class="primary" data-action="save-note">Save note</button></div>
       </section>
-      <section class="panel info" aria-label="QA Capture information">
-        <h2>QA Capture</h2>
+      <section class="panel info" aria-label="QAWELL information">
+        <h2>QAWELL</h2>
         <p>This tool records your notes and ordinary page context. It does not read cookies, existing site storage, form values, request bodies, or request headers.</p>
         <div class="actions"><button data-action="close-info">Close</button><button data-action="destroy">Remove tool</button></div>
       </section>
@@ -118,7 +118,7 @@
       <div class="toolbar" hidden>
         <button data-action="select" class="primary">＋ Add note</button>
         <button data-action="list" class="count" title="View saved notes">0 notes</button>
-        <button data-action="info" aria-label="About QA Capture">?</button>
+        <button data-action="info" aria-label="About QAWELL">?</button>
         <button data-action="export">Export ZIP</button>
       </div>
       <div class="toast" role="status"></div>
@@ -363,7 +363,7 @@
         reviewer: state.reviewer,
       }));
     } catch (error) {
-      console.warn("QA Capture could not persist reviewer identity.", error);
+      console.warn("QAWELL could not persist reviewer identity.", error);
     }
     try {
       const assets = state.assets.map((asset) => ({
@@ -378,7 +378,7 @@
         assets,
       }));
     } catch (error) {
-      console.warn("QA Capture could not persist this review across navigation.", error);
+      console.warn("QAWELL could not persist this review across navigation.", error);
       toast("Saved, but cross-page storage is full");
     }
   }
@@ -402,7 +402,7 @@
         bytes: base64ToBytes(asset.bytes),
       }));
     } catch (error) {
-      console.warn("QA Capture could not restore its previous session.", error);
+      console.warn("QAWELL could not restore its previous session.", error);
     }
   }
 
@@ -424,7 +424,7 @@
       schema: SCHEMA,
       header: {
         id: state.id,
-        generator: { name: "QA Capture", version: VERSION, delivery: "console-script" },
+        generator: { name: "QAWELL", version: VERSION, delivery: "console-script" },
         reviewer: { name: state.reviewer || "Anonymous reviewer" },
         timing: { startedAt: state.startedAt, exportedAt: new Date().toISOString() },
         platform: {
@@ -652,7 +652,7 @@
     for (const fn of cleanup.reverse()) fn();
     host.remove();
     delete window[GLOBAL_KEY];
-    console.info("QA Capture removed. Page instrumentation restored.");
+    console.info("QAWELL removed. Page instrumentation restored.");
   }
 
   function resetSession() {

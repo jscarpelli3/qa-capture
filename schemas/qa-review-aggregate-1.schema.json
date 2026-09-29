@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://jscarpelli3.github.io/qa-capture/schemas/qa-review-aggregate-1.schema.json",
-  "title": "QA Capture Review Aggregate",
+  "title": "QAWELL Review Aggregate",
   "type": "object",
   "required": ["schema", "id", "generatedAt", "summary", "sources", "notes", "assets"],
   "properties": {

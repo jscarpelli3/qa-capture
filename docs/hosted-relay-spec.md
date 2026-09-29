@@ -1,4 +1,4 @@
-# QA Capture Hosted Relay Specification
+# QAWELL Hosted Relay Specification
 
 Status: Draft for implementation  
 Schema target: `qa-review/1`  
@@ -8,7 +8,7 @@ The developer signup, invitation, end-of-session Google verification, renderer, 
 
 ## 1. Purpose
 
-The hosted relay receives QA Capture archives from browser-based review sessions, validates and sanitizes them, stores an approved canonical package, and optionally delivers that package to configured downstream systems.
+The hosted relay receives QAWELL archives from browser-based review sessions, validates and sanitizes them, stores an approved canonical package, and optionally delivers that package to configured downstream systems.
 
 The browser capture utility remains useful without the relay. It must always retain local ZIP export as a fallback.
 
@@ -115,7 +115,7 @@ An HMAC-SHA256 alternative is acceptable for the first private implementation, b
 ## 4. High-level flow
 
 ```text
-Reviewer activates QA Capture
+Reviewer activates QAWELL
         |
         v
 POST /v1/reviews
@@ -177,7 +177,7 @@ An administrator creates an invitation containing:
 - Optional reviewer email/name
 - Random invitation secret
 
-The invitation secret is delivered in the URL fragment so it is not sent in the initial HTTP request. QA Capture exchanges it for a review session and then removes it from the URL.
+The invitation secret is delivered in the URL fragment so it is not sent in the initial HTTP request. QAWELL exchanges it for a review session and then removes it from the URL.
 
 ### 5.3 Public staging capture
 
@@ -642,6 +642,6 @@ Do not record:
 - Accepting arbitrary file types
 - Allowing browser-selected delivery URLs
 - Giving the browser direct access to integration APIs
-- Editing or triaging issues inside QA Capture
+- Editing or triaging issues inside QAWELL
 - Replacing the downloadable local ZIP workflow
 - Claiming that scanning makes untrusted content completely safe

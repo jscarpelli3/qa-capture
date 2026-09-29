@@ -11,7 +11,7 @@ if (!args.length || args.includes("--help") || args.includes("-h")) {
 }
 
 const options = parseArgs(args);
-if (!options.inputs.length) fail("Provide at least one QA Capture ZIP archive.");
+if (!options.inputs.length) fail("Provide at least one QAWELL ZIP archive.");
 const outputDir = resolve(options.output);
 await mkdir(outputDir, { recursive: true });
 

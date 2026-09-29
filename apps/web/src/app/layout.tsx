@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "QA Capture",
+  title: "QAWELL",
   description: "Structured website review sessions for developers and QA teams.",
 };
 

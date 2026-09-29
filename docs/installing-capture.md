@@ -1,4 +1,4 @@
-# Installing and Running QA Capture
+# Installing and Running QAWELL
 
 Status: Current prototype deployment  
 Capture script version: `0.2.0`
@@ -57,7 +57,7 @@ Use this for ad hoc reviews without changing the target site.
 
 1. Open the hosted [`bookmarklet.js`](https://jscarpelli3.github.io/qa-capture/bookmarklet.js).
 2. Copy its complete one-line contents, including the `javascript:` prefix.
-3. Create a browser bookmark named **QA Capture**.
+3. Create a browser bookmark named **QAWELL**.
 4. Paste the copied line into the bookmark's URL field.
 5. Open the page to review and click the bookmark.
 
@@ -72,7 +72,7 @@ Possible blocker: a site's Content Security Policy may disallow scripts from `ht
 
 ## Option B: Direct script tag
 
-Use this when QA Capture should load automatically throughout a staging or preview site:
+Use this when QAWELL should load automatically throughout a staging or preview site:
 
 ```html
 <script src="https://jscarpelli3.github.io/qa-capture/qa-capture.js"></script>
@@ -214,7 +214,7 @@ window.__qaCapture.reset();   // erase the saved session and start over
 
 ## Reviewer workflow
 
-1. Activate or load QA Capture.
+1. Activate or load QAWELL.
 2. Enter a reviewer name on first use.
 3. Hover until the intended element is outlined.
 4. Click the element.

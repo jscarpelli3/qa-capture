@@ -1,4 +1,4 @@
-# QA Capture Aggregator Specification
+# QAWELL Aggregator Specification
 
 Status: Implemented MVP for HTML, JSON, Markdown, CSV, and Excel  
 Package: `@qa-capture/aggregate`  

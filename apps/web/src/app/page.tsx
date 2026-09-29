@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="shell">
-      <nav className="nav"><span className="wordmark">QA/CAPTURE</span><span className="navNoise" aria-hidden="true">[ REVIEW SYSTEM 0.2 ]</span><Link className="button buttonSecondary" href="/login">Developer login →</Link></nav>
+      <nav className="nav"><span className="wordmark">QAWELL</span><span className="navNoise" aria-hidden="true">[ REVIEW SYSTEM 0.2 ]</span><Link className="button buttonSecondary" href="/login">Developer login →</Link></nav>
       <section className="hero">
         <div className="heroMark" aria-hidden="true">QA</div>
         <h1>Point.<br />Write.<br /><span>Ship the evidence.</span></h1>
