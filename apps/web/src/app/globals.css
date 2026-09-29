@@ -13,7 +13,7 @@ button { font:inherit; }
 .hero h1 { position:relative; z-index:2; width:91%; margin:0; font-size:clamp(65px,9.7vw,142px); line-height:.77; letter-spacing:-.085em; text-transform:uppercase; }
 .hero h1 span { display:inline-block; color:var(--paper); background:var(--ink); padding:10px 20px 18px 8px; transform:rotate(-1.2deg) translateX(4vw); white-space:nowrap; }
 .heroMark { position:absolute; right:-.03em; top:.06em; color:#d8d5ca; font-size:clamp(180px,30vw,430px); font-weight:900; line-height:1; letter-spacing:-.14em; user-select:none; writing-mode:vertical-rl; }
-.wellArt { position:absolute; z-index:1; right:1%; bottom:-10%; width:min(48vw,590px); transform:rotate(2.5deg); filter:saturate(.72) contrast(.96); }
+.wellArt { position:absolute; z-index:1; right:1%; bottom:-10%; width:min(48vw,590px); transform:rotate(2.5deg); }
 .wellArt img { display:block; width:100%; height:auto; }
 .lede { position:absolute; z-index:3; left:1.5%; bottom:116px; width:min(440px,43%); margin:0; border:1px solid var(--ink); padding:18px; background:rgba(231,228,218,.94); color:var(--ink); font:18px/1.35 system-ui,sans-serif; transform:rotate(-1deg); }
 .buttonRow { position:absolute; z-index:3; left:0; bottom:40px; display:flex; flex-wrap:wrap; gap:0; }
