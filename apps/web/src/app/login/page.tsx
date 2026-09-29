@@ -17,8 +17,9 @@ async function signInWithGoogle() {
 export default function LoginPage() {
   return (
     <main className="centered"><section className="panel">
-      <p className="eyebrow">Developer access</p><h1>Sign in to QA Capture.</h1>
-      <p>Google verifies your identity. Drive access is never requested here.</p>
+      <div className="panelIndex" aria-hidden="true">ACCESS<br />/01</div>
+      <h1>Sign<br />in.</h1>
+      <p className="panelNote">Google verifies your identity.<br />Drive access is never requested here.</p>
       <form action={signInWithGoogle}><button className="button" type="submit">Continue with Google</button></form>
     </section></main>
   );
