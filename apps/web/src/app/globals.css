@@ -13,14 +13,16 @@ button { font:inherit; }
 .hero h1 { position:relative; z-index:2; width:91%; margin:0; font-size:clamp(65px,9.7vw,142px); line-height:.77; letter-spacing:-.085em; text-transform:uppercase; }
 .hero h1 span { display:inline-block; color:var(--paper); background:var(--ink); padding:10px 20px 18px 8px; transform:rotate(-1.2deg) translateX(4vw); white-space:nowrap; }
 .heroMark { position:absolute; right:-.03em; top:.06em; color:#d8d5ca; font-size:clamp(180px,30vw,430px); font-weight:900; line-height:1; letter-spacing:-.14em; user-select:none; writing-mode:vertical-rl; }
-.wellArt { position:absolute; z-index:1; right:1%; bottom:-10%; width:min(48vw,590px); transform:rotate(2.5deg); }
+.wellArt { position:absolute; z-index:0; right:-11%; bottom:-21%; width:min(62vw,760px); transform:rotate(-7deg); opacity:.12; }
 .wellArt img { display:block; width:100%; height:auto; }
 .lede { position:absolute; z-index:3; left:1.5%; bottom:116px; width:min(440px,43%); margin:0; border:1px solid var(--ink); padding:18px; background:rgba(231,228,218,.94); color:var(--ink); font:18px/1.35 system-ui,sans-serif; transform:rotate(-1deg); }
 .buttonRow { position:absolute; z-index:3; left:0; bottom:40px; display:flex; flex-wrap:wrap; gap:0; }
 .button { display:inline-flex; min-height:46px; align-items:center; justify-content:center; border:1px solid var(--ink); border-radius:0; padding:10px 15px; background:var(--ink); color:var(--paper); font-weight:900; text-transform:uppercase; letter-spacing:-.02em; cursor:pointer; }
 .button:hover { background:var(--accent); color:var(--paper); border-color:var(--accent); }
 .buttonSecondary { background:transparent; color:var(--ink); }
-.statusGrid { display:grid; grid-template-columns:1.15fr .85fr 1.4fr; margin-bottom:60px; }
+.statusGrid { position:relative; display:grid; grid-template-columns:1.15fr .85fr 1.4fr; margin-bottom:60px; }
+.wellEcho { position:absolute; z-index:2; top:-37px; left:31%; width:96px; transform:rotate(17deg); opacity:.7; pointer-events:none; }
+.wellEcho img { display:block; width:100%; height:auto; }
 .statusGrid article { min-height:230px; padding:18px; border-right:1px solid var(--ink); }
 .statusGrid article:first-child { border-left:1px solid var(--ink); }
 .statusGrid article:nth-child(2) { padding-top:70px; }
@@ -47,7 +49,8 @@ button { font:inherit; }
   .nav { grid-template-columns:1fr auto; } .navNoise { display:none; }
   .hero { min-height:720px; } .hero h1 { width:100%; line-height:.8; }
   .hero h1 span { padding:7px 10px 11px 4px; transform:rotate(-1.2deg) translateX(0); white-space:normal; }
-  .wellArt { right:-20%; bottom:6%; width:86vw; opacity:.72; }
+  .wellArt { right:-36%; bottom:-2%; width:112vw; opacity:.1; }
+  .wellEcho { top:-23px; left:auto; right:8%; width:70px; }
   .lede { left:0; bottom:130px; width:86%; } .buttonRow { bottom:30px; }
   .statusGrid { grid-template-columns:1fr; }
   .statusGrid article,.statusGrid article:first-child { min-height:180px; border-left:1px solid var(--ink); border-bottom:1px solid var(--ink); }
