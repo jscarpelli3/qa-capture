@@ -16,6 +16,8 @@ The Vercel-hosted control plane for QAWELL. The browser capture utility remains 
 - Import `jscarpelli3/qa-capture`.
 - Set **Root Directory** to `apps/web`.
 - Add `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in every required environment.
+- Add `SUPABASE_SERVICE_ROLE_KEY` as a server-only Vercel secret. It stores and reads encrypted integration credentials; never prefix it with `NEXT_PUBLIC_`.
+- Add `QAWELL_CREDENTIAL_ENCRYPTION_KEY` as a server-only Vercel secret containing 64 hexadecimal characters. Generate it with `openssl rand -hex 32` and do not rotate it without re-encrypting stored credentials.
 - Create a **Private** Blob store and connect it to the project. Vercel supplies `BLOB_STORE_ID` and authenticates deployments with an automatically rotated OIDC token; do not create a long-lived Blob write token.
 - Set production `NEXT_PUBLIC_APP_URL` to the final HTTPS application URL.
 
