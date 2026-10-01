@@ -1,12 +1,13 @@
-import { getWidgetProject, widgetConfig } from "@/lib/widget-project";
+import { diagnoseWidgetProject, widgetConfig } from "@/lib/widget-project";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectKey = url.searchParams.get("project") || "";
   const origin = url.searchParams.get("origin") || request.headers.get("origin") || "";
   try {
-    const record = await getWidgetProject(projectKey, origin);
-    if (!record) return json({ error: "Project or verified origin not found." }, 404, origin);
+    const result = await diagnoseWidgetProject(projectKey, origin);
+    const record = result.record;
+    if (!record) return json({ error: result.error || "Project or verified origin not found." }, 404, origin);
     return json(widgetConfig(record), 200, record.origin);
   } catch { return json({ error: "Invalid project request." }, 400, origin); }
 }

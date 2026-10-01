@@ -524,7 +524,7 @@
       }
       hosted.config = await response.json();
       Object.assign(installationContext, { organization: hosted.config.organization, projectName: hosted.config.project, environment: hosted.config.environment, delivery: hosted.config.delivery?.provider || "ZIP download" });
-    } catch (error) { hosted.config = { project:"Unverified project", organization:"QAWELL", environment:"Project/origin not verified", delivery:{ mode:"download", provider:null, destination:null }, error:safeString(error) }; }
+    } catch (error) { hosted.config = { project:"Unverified project", organization:"QAWELL", environment:safeString(error), delivery:{ mode:"download", provider:null, destination:null }, error:safeString(error) }; }
     if (hosted.invitationToken) persistHostedSession();
     renderHostedIdentity();
   }
