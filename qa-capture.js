@@ -518,10 +518,13 @@
     if (!hosted.projectKey) { renderHostedIdentity(); return; }
     try {
       const response = await fetch(`${hosted.apiBase}/api/widget/config?project=${encodeURIComponent(hosted.projectKey)}&origin=${encodeURIComponent(location.origin)}`);
-      if (!response.ok) throw new Error("Project not recognized");
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}));
+        throw new Error(failure.error || "Project or site origin not verified");
+      }
       hosted.config = await response.json();
       Object.assign(installationContext, { organization: hosted.config.organization, projectName: hosted.config.project, environment: hosted.config.environment, delivery: hosted.config.delivery?.provider || "ZIP download" });
-    } catch (error) { hosted.config = { project:"Unverified project", organization:"QAWELL", delivery:{ mode:"download" }, error:safeString(error) }; }
+    } catch (error) { hosted.config = { project:"Unverified project", organization:"QAWELL", environment:"Project/origin not verified", delivery:{ mode:"download", provider:null, destination:null }, error:safeString(error) }; }
     if (hosted.invitationToken) persistHostedSession();
     renderHostedIdentity();
   }
