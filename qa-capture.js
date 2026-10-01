@@ -77,7 +77,7 @@
       .actions .primary { background:#282b27;color:#e7e4da; }
       .hint { margin:8px 0 0;color:#777b70;font-size:11px; }
       .identity { margin:-4px 0 18px;padding:11px;border:1px solid #282b27;background:#d8d5ca; }
-      .identity strong,.identity span { display:block; }.identity span { margin-top:3px;color:#666b45;font-size:10px;text-transform:uppercase; }
+      .identity strong,.identity span,.identity em { display:block; }.identity span { margin-top:3px;color:#666b45;font-size:10px;text-transform:uppercase; }.identity em { margin-top:7px;color:#282b27;font:11px/1.35 ui-sans-serif,system-ui,sans-serif;font-style:normal; }
       .target { padding:9px;background:#d8d5ca;border:1px solid #777b70;border-radius:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px; }
       .target-warning { display:none;margin:8px 0 0;padding:8px;border:1px solid #a84f2f;color:#7c321c;background:#ead2c8;font-size:11px; }
       .target-warning.show { display:block; }
@@ -103,7 +103,7 @@
       <div class="outline"></div>
       <section class="panel setup open" aria-label="QAWELL setup">
         <h2>Start a QA review</h2>
-        <div class="identity"><strong data-identity-project>Loading project…</strong><span data-identity-detail>QAWELL review utility</span></div>
+        <div class="identity"><strong data-identity-project>Loading project…</strong><span data-identity-owner>QAWELL review utility</span><em data-identity-environment></em><em data-identity-delivery></em></div>
         <label for="reviewer">Your name</label>
         <input id="reviewer" autocomplete="name" placeholder="Wayne Newton">
         <p class="hint">Stored only in the review data you download.</p>
@@ -127,7 +127,7 @@
       </section>
       <section class="panel info" aria-label="QAWELL information">
         <h2>QAWELL</h2>
-        <div class="identity"><strong data-info-project>Unassigned review</strong><span data-info-detail>Raw ZIP download</span></div>
+        <div class="identity"><strong data-info-project>Unassigned review</strong><span data-info-owner>QAWELL</span><em data-info-environment></em><em data-info-delivery>Notes will download as a ZIP.</em></div>
         <p>This tool records your notes and ordinary page context. It does not read cookies, existing site storage, form values, request bodies, or request headers.</p>
         <div class="actions"><button data-action="close-info">Close</button><button data-action="destroy">Remove tool</button></div>
       </section>
@@ -558,9 +558,14 @@
   function renderHostedIdentity() {
     const config = hosted.config;
     const project = config?.project || installationContext.project || "Local review";
-    const detail = config ? `${config.organization} · ${config.environment} · ${config.delivery?.provider || "Raw ZIP download"}${config.delivery?.destination ? ` / ${config.delivery.destination}` : ""}` : "Raw ZIP download · no hosted project";
+    const owner = config ? `For ${config.organization}` : "No hosted project";
+    const environment = config?.environment ? `Reviewing the ${config.environment} site.` : "";
+    const destination = config?.delivery?.provider ? `${config.delivery.provider}${config.delivery.destination ? ` / ${config.delivery.destination}` : ""}` : "";
+    const delivery = destination ? `Notes will be sent to ${destination}.` : "Notes will download as a ZIP.";
     root.querySelectorAll("[data-identity-project],[data-info-project]").forEach((node) => { node.textContent = project; });
-    root.querySelectorAll("[data-identity-detail],[data-info-detail]").forEach((node) => { node.textContent = detail; });
+    root.querySelectorAll("[data-identity-owner],[data-info-owner]").forEach((node) => { node.textContent = owner; });
+    root.querySelectorAll("[data-identity-environment],[data-info-environment]").forEach((node) => { node.textContent = environment; });
+    root.querySelectorAll("[data-identity-delivery],[data-info-delivery]").forEach((node) => { node.textContent = delivery; });
     const exportButton = $("[data-action=export]");
     if (exportButton) exportButton.textContent = config?.delivery?.mode === "integration" ? "Send QA" : hosted.invitationToken ? "Finish & download" : "Export ZIP";
   }

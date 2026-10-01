@@ -18,7 +18,7 @@ export function WidgetPreview({ organization, project, environment, provider, de
     <div className="widgetPreviewStage">
       <div className="fakeWidgetPanel">
         <p className="fakeWidgetTitle">Start a QA review</p>
-        <div className="fakeWidgetIdentity"><strong>{project}</strong><span>{organization} · {environment} · {delivery}</span></div>
+        <div className="fakeWidgetIdentity"><strong>{project}</strong><span>For {organization}</span><em>Reviewing the {environment} site.</em><em>{provider ? `Notes will be sent to ${delivery}.` : "Notes will download as a ZIP."}</em></div>
         <label>Your name</label><div className="fakeWidgetInput">Wayne Newton</div>
         <p className="fakeWidgetHint">Your notes stay attached to this review.</p>
         <button type="button" tabIndex={-1}>Start review</button>
