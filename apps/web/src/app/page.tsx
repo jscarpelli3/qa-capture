@@ -4,9 +4,8 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="shell">
-      <nav className="nav"><span className="wordmark">QAWELL</span><span className="navNoise" aria-hidden="true">[ REVIEW SYSTEM 0.2 ]</span><Link className="button buttonSecondary" href="/login">Developer login →</Link></nav>
+      <nav className="nav"><Link className="brand" href="/"><span className="navWell" aria-hidden="true"><Image src="/art/qawell-well.png" alt="" width={1254} height={1254} priority /></span><span className="wordmark">QAWELL</span></Link><span className="navNoise" aria-hidden="true">[ REVIEW SYSTEM 0.2 ]</span><Link className="button buttonSecondary" href="/login">Developer login →</Link></nav>
       <section className="hero">
-        <div className="wellArt" aria-hidden="true"><Image src="/art/qawell-well.png" alt="" width={1254} height={1254} priority /></div>
         <div className="heroMark" aria-hidden="true">WELL</div>
         <h1>See it.<br />Mark it.<br /><span>Send the context.</span></h1>
         <p className="lede">A deeper kind of website review. Point at the problem and QAWELL gathers the page, browser, layout, and diagnostic context around it.</p>
