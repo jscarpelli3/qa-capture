@@ -27,7 +27,7 @@ The aggregator does not modify source archives and does not infer ticket resolut
 npm run aggregate -- \
   --output ./combined-review \
   --format html,json,markdown,csv,xlsx \
-  ./jane.zip ./michael.zip ./client.zip
+  ./wayne.zip ./michael.zip ./client.zip
 ```
 
 Direct package invocation:

@@ -451,7 +451,7 @@ qa-<sanitized-reviewer-name>-<YYYY-MM-DD>-<short-review-id>.zip
 Example:
 
 ```text
-qa-jane-doe-2026-09-27-01KXYZ.zip
+qa-wayne-newton-2026-09-27-01KXYZ.zip
 ```
 
 Use the submission date in UTC and a review ID suffix to prevent collisions.
@@ -507,8 +507,8 @@ Drive delivery may produce:
 
 ```text
 Client Website QA/
-└── 2026-09-27 — Jane Doe — 01KXYZ/
-    ├── qa-jane-doe-2026-09-27-01KXYZ.zip
+└── 2026-09-27 — Wayne Newton — 01KXYZ/
+    ├── qa-wayne-newton-2026-09-27-01KXYZ.zip
     ├── review.pdf
     ├── review.md
     └── offline-review.zip

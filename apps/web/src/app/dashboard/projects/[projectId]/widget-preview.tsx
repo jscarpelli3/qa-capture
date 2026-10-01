@@ -19,7 +19,7 @@ export function WidgetPreview({ organization, project, environment, provider, de
       <div className="fakeWidgetPanel">
         <p className="fakeWidgetTitle">Start a QA review</p>
         <div className="fakeWidgetIdentity"><strong>{project}</strong><span>{organization} · {environment} · {delivery}</span></div>
-        <label>Your name</label><div className="fakeWidgetInput">Jane Reviewer</div>
+        <label>Your name</label><div className="fakeWidgetInput">Wayne Newton</div>
         <p className="fakeWidgetHint">Your notes stay attached to this review.</p>
         <button type="button" tabIndex={-1}>Start review</button>
       </div>

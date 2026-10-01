@@ -105,7 +105,7 @@
         <h2>Start a QA review</h2>
         <div class="identity"><strong data-identity-project>Loading project…</strong><span data-identity-detail>QAWELL review utility</span></div>
         <label for="reviewer">Your name</label>
-        <input id="reviewer" autocomplete="name" placeholder="Jane Reviewer">
+        <input id="reviewer" autocomplete="name" placeholder="Wayne Newton">
         <p class="hint">Stored only in the review data you download.</p>
         <div class="actions"><button class="primary" data-action="start">Start review</button></div>
       </section>
