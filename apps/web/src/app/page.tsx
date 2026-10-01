@@ -4,7 +4,7 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="shell">
-      <nav className="nav"><Link className="brand" href="/"><span className="navWell" aria-hidden="true"><Image src="/art/qawell-well.png" alt="" width={1254} height={1254} priority /></span><span className="wordmark">QAWELL</span></Link><span className="navNoise" aria-hidden="true">[ REVIEW SYSTEM 0.2 ]</span><Link className="button buttonSecondary" href="/login">Developer login →</Link></nav>
+      <nav className="nav"><Link className="brand" href="/"><span className="navWell" aria-hidden="true"><Image src="/icon.png" alt="" width={128} height={128} priority /></span><span className="wordmark">QAWELL</span></Link><span className="navNoise" aria-hidden="true">[ REVIEW SYSTEM 0.2 ]</span><Link className="button buttonSecondary" href="/login">Developer login →</Link></nav>
       <section className="hero">
         <div className="heroMark" aria-hidden="true">WELL</div>
         <h1>See it.<br />Mark it.<br /><span>Send the context.</span></h1>
