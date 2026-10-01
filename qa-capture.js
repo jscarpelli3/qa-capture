@@ -1,12 +1,26 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.2.0";
+  const VERSION = "0.3.0";
   const SCHEMA = "qa-review/1";
   const GLOBAL_KEY = "__qaCapture";
   const STORAGE_KEY = "__qaCaptureSession_v1";
   const IDENTITY_KEY = "__qaCaptureIdentity_v1";
-  const installationContext = captureInstallationContext(document.currentScript);
+  const HOSTED_KEY = "__qawellHostedSession_v1";
+  const sourceScript = document.currentScript;
+  const installationContext = captureInstallationContext(sourceScript);
+  const hosted = {
+    apiBase: sourceScript?.src ? new URL(sourceScript.src).origin : "https://qawell.dev",
+    projectKey: sourceScript?.dataset?.project || sourceScript?.dataset?.qaProject || "",
+    invitationToken: readInvitationToken(),
+    config: null,
+    reviewId: null,
+    uploadToken: null,
+    maxArchiveBytes: 0,
+    submitted: false,
+  };
+  restoreHostedSession();
+  if (hosted.invitationToken) persistHostedSession();
 
   if (window[GLOBAL_KEY]) {
     window[GLOBAL_KEY].addNote();
@@ -37,46 +51,51 @@
     <style>
       :host { all: initial; }
       *, *::before, *::after { box-sizing: border-box; }
-      .qa { color:#f5f1e8; font:13px/1.45 ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
+      .qa { color:#282b27; font:13px/1.45 ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
       button, input, textarea, select { font:inherit; }
       button { cursor:pointer; }
-      .toolbar { position:fixed;right:18px;bottom:18px;display:flex;gap:7px;align-items:center;padding:7px;background:#080808;border:1px solid #f5f1e8;border-radius:3px;box-shadow:0 12px 35px #0009;pointer-events:auto; }
-      .toolbar button { border:1px solid #f5f1e8;border-radius:2px;padding:8px 11px;background:#f5f1e8;color:#080808;font-weight:700;text-transform:uppercase;letter-spacing:.03em; }
-      .toolbar button:hover { background:#fff; }
-      .toolbar button.primary { background:#080808;color:#f5f1e8; }
-      .toolbar button.active { background:#f5f1e8;color:#080808; }
-      .toolbar .count { border:0;background:transparent;color:#fff;padding:8px 5px;white-space:nowrap;text-transform:none;letter-spacing:0;font-weight:500; }
-      .toolbar .count:hover { background:#222;color:#fff; }
-      .outline { display:none;position:fixed;border:2px solid #ff4d00;background:#ff4d001a;pointer-events:none; }
-      .panel { display:none;position:fixed;right:18px;bottom:76px;width:min(380px,calc(100vw - 36px));max-height:calc(100vh - 100px);overflow:auto;padding:18px;background:#080808;border:1px solid #f5f1e8;border-radius:3px;box-shadow:0 18px 50px #000a;pointer-events:auto; }
+      .toolbar { position:fixed;right:18px;bottom:18px;display:flex;gap:0;align-items:center;padding:0;background:#e7e4da;border:1px solid #282b27;border-radius:0;box-shadow:7px 7px 0 #666b45;pointer-events:auto; }
+      .toolbar button { min-height:42px;border:0;border-right:1px solid #282b27;border-radius:0;padding:8px 11px;background:#e7e4da;color:#282b27;font-weight:800;text-transform:uppercase;letter-spacing:.02em; }
+      .toolbar button:last-child { border-right:0; }
+      .toolbar button:hover { background:#d8d5ca; }
+      .toolbar button.primary { background:#282b27;color:#e7e4da; }
+      .toolbar button.active { background:#a84f2f;color:#e7e4da; }
+      .toolbar .count { background:transparent;color:#282b27;padding:8px 10px;white-space:nowrap;text-transform:none;letter-spacing:0;font-weight:600; }
+      .toolbar .count:hover { background:#d8d5ca;color:#282b27; }
+      .well-mark { width:38px;padding:3px!important;background:#d8d5ca!important; }
+      .well-mark img { display:block;width:31px;height:31px;object-fit:contain; }
+      .outline { display:none;position:fixed;border:2px solid #a84f2f;background:#a84f2f1a;pointer-events:none; }
+      .panel { display:none;position:fixed;right:18px;bottom:76px;width:min(400px,calc(100vw - 36px));max-height:calc(100vh - 100px);overflow:auto;padding:20px;background:#e7e4da;color:#282b27;border:1px solid #282b27;border-radius:0;box-shadow:9px 9px 0 #666b45;pointer-events:auto; }
       .panel.open { display:block; }
       h2 { margin:0 0 14px;font-size:15px;text-transform:uppercase;letter-spacing:.08em; }
       label { display:block;margin:12px 0 6px;font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.06em; }
-      input, textarea { width:100%;border:1px solid #f5f1e8;border-radius:2px;padding:10px;color:#f5f1e8;background:#111;outline:none; }
-      input:focus, textarea:focus { border-color:#ff4d00;box-shadow:0 0 0 1px #ff4d00; }
+      input, textarea { width:100%;border:0;border-bottom:1px solid #282b27;border-radius:0;padding:10px 2px;color:#282b27;background:transparent;outline:none; }
+      input:focus, textarea:focus { border-color:#a84f2f;box-shadow:0 2px 0 #a84f2f; }
       textarea { min-height:96px;resize:vertical; }
       .actions { display:flex;justify-content:flex-end;gap:8px;margin-top:14px; }
-      .actions button { border:1px solid #f5f1e8;border-radius:2px;padding:8px 11px;background:#080808;color:#f5f1e8;text-transform:uppercase;font-weight:700;font-size:11px; }
-      .actions .primary { background:#f5f1e8;color:#080808; }
-      .hint { margin:8px 0 0;color:#aaa;font-size:11px; }
-      .target { padding:9px;background:#181818;border:1px solid #444;border-radius:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px; }
-      .target-warning { display:none;margin:8px 0 0;padding:8px;border:1px solid #ff4d00;color:#ffd2bf;background:#261008;font-size:11px; }
+      .actions button { border:1px solid #282b27;border-radius:0;padding:8px 11px;background:transparent;color:#282b27;text-transform:uppercase;font-weight:800;font-size:11px; }
+      .actions .primary { background:#282b27;color:#e7e4da; }
+      .hint { margin:8px 0 0;color:#777b70;font-size:11px; }
+      .identity { margin:-4px 0 18px;padding:11px;border:1px solid #282b27;background:#d8d5ca; }
+      .identity strong,.identity span { display:block; }.identity span { margin-top:3px;color:#666b45;font-size:10px;text-transform:uppercase; }
+      .target { padding:9px;background:#d8d5ca;border:1px solid #777b70;border-radius:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px; }
+      .target-warning { display:none;margin:8px 0 0;padding:8px;border:1px solid #a84f2f;color:#7c321c;background:#ead2c8;font-size:11px; }
       .target-warning.show { display:block; }
       .types { display:flex;flex-wrap:wrap;gap:6px; }
       .type-pill { position:relative; }
       .type-pill input { position:absolute;opacity:0;pointer-events:none; }
-      .type-pill span { display:block;padding:6px 9px;border:1px solid #777;border-radius:999px;color:#bbb;cursor:pointer;text-transform:uppercase;font-size:10px;font-weight:700;letter-spacing:.05em; }
-      .type-pill input:checked + span { background:#f5f1e8;border-color:#f5f1e8;color:#080808; }
-      .type-pill input:focus-visible + span { outline:2px solid #ff4d00;outline-offset:2px; }
+      .type-pill span { display:block;padding:6px 9px;border:1px solid #777b70;border-radius:0;color:#666b45;cursor:pointer;text-transform:uppercase;font-size:10px;font-weight:700;letter-spacing:.05em; }
+      .type-pill input:checked + span { background:#282b27;border-color:#282b27;color:#e7e4da; }
+      .type-pill input:focus-visible + span { outline:2px solid #a84f2f;outline-offset:2px; }
       .note-list { display:grid;gap:8px; }
-      .note-list-item { width:100%;padding:11px;border:1px solid #555;border-radius:2px;background:#111;color:#f5f1e8;text-align:left; }
-      .note-list-item:hover, .note-list-item.focused { border-color:#ff4d00;background:#19110e; }
-      .note-list-meta { display:flex;justify-content:space-between;gap:8px;margin-bottom:5px;color:#aaa;font-size:10px;text-transform:uppercase; }
+      .note-list-item { width:100%;padding:11px;border:1px solid #777b70;border-radius:0;background:transparent;color:#282b27;text-align:left; }
+      .note-list-item:hover, .note-list-item.focused { border-color:#a84f2f;background:#d8d5ca; }
+      .note-list-meta { display:flex;justify-content:space-between;gap:8px;margin-bottom:5px;color:#777b70;font-size:10px;text-transform:uppercase; }
       .note-list-text { display:block;font:13px/1.45 ui-sans-serif,system-ui,sans-serif; }
       .note-list-page { display:block;margin-top:6px;color:#888;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
       .pins { position:fixed;inset:0;pointer-events:none; }
-      .pin { position:absolute;width:25px;height:25px;border:1px solid #f5f1e8;border-radius:50%;background:#080808;color:#f5f1e8;box-shadow:2px 2px 0 #f5f1e8;font:bold 11px/21px ui-monospace;text-align:center;pointer-events:auto; }
-      .toast { display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:9px 13px;border:1px solid #f5f1e8;border-radius:2px;background:#080808;color:#f5f1e8;box-shadow:4px 4px 0 #f5f1e8; }
+      .pin { position:absolute;width:25px;height:25px;border:1px solid #e7e4da;border-radius:50%;background:#282b27;color:#e7e4da;box-shadow:2px 2px 0 #a84f2f;font:bold 11px/21px ui-monospace;text-align:center;pointer-events:auto; }
+      .toast { display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:9px 13px;border:1px solid #282b27;border-radius:0;background:#e7e4da;color:#282b27;box-shadow:4px 4px 0 #666b45; }
       .toast.show { display:block; }
     </style>
     <div class="qa">
@@ -84,6 +103,7 @@
       <div class="outline"></div>
       <section class="panel setup open" aria-label="QAWELL setup">
         <h2>Start a QA review</h2>
+        <div class="identity"><strong data-identity-project>Loading project…</strong><span data-identity-detail>QAWELL review utility</span></div>
         <label for="reviewer">Your name</label>
         <input id="reviewer" autocomplete="name" placeholder="Jane Reviewer">
         <p class="hint">Stored only in the review data you download.</p>
@@ -107,6 +127,7 @@
       </section>
       <section class="panel info" aria-label="QAWELL information">
         <h2>QAWELL</h2>
+        <div class="identity"><strong data-info-project>Unassigned review</strong><span data-info-detail>Raw ZIP download</span></div>
         <p>This tool records your notes and ordinary page context. It does not read cookies, existing site storage, form values, request bodies, or request headers.</p>
         <div class="actions"><button data-action="close-info">Close</button><button data-action="destroy">Remove tool</button></div>
       </section>
@@ -116,9 +137,9 @@
         <div class="actions"><button data-action="close-notes">Close</button></div>
       </section>
       <div class="toolbar" hidden>
+        <button class="well-mark" data-action="info" aria-label="About this QAWELL review"><img src="https://qawell.dev/icon.png" alt=""></button>
         <button data-action="select" class="primary">＋ Add note</button>
         <button data-action="list" class="count" title="View saved notes">0 notes</button>
-        <button data-action="info" aria-label="About QAWELL">?</button>
         <button data-action="export">Export ZIP</button>
       </div>
       <div class="toast" role="status"></div>
@@ -182,6 +203,7 @@
   };
 
   updatePins();
+  loadHostedConfig();
 
   if (state.reviewer) {
     $("#reviewer").value = state.reviewer;
@@ -192,8 +214,12 @@
     toast("Review restored — select an element");
   }
 
-  function startReview() {
+  async function startReview() {
     state.reviewer = $("#reviewer").value.trim() || "Anonymous reviewer";
+    if (hosted.projectKey && hosted.invitationToken && !hosted.reviewId) {
+      try { await startHostedReview(); }
+      catch (error) { toast(safeString(error)); return; }
+    }
     persistSession();
     toolbar.hidden = false;
     openPanel(null);
@@ -456,13 +482,93 @@
       ...state.assets.map((asset) => ({ name: asset.path, data: asset.bytes })),
     ];
     const blob = new Blob([makeZip(files)], { type: "application/zip" });
+    if (hosted.reviewId && hosted.uploadToken) {
+      if (hosted.maxArchiveBytes && blob.size > hosted.maxArchiveBytes) { toast("Review is too large to send — downloading recovery ZIP"); downloadBlob(blob); return; }
+      const button = $("[data-action=export]");
+      button.disabled = true;
+      button.textContent = "Sending…";
+      try {
+        const response = await fetch(`${hosted.apiBase}/api/v1/reviews/${hosted.reviewId}/archive`, { method:"POST", headers:{ "Content-Type":"application/zip", Authorization:`Bearer ${hosted.uploadToken}` }, body:blob });
+        if (!response.ok) { const failure = await response.json().catch(() => ({})); throw new Error(failure.error || "QAWELL could not send this review"); }
+        if (response.headers.get("content-type")?.includes("application/zip")) { downloadBlob(await response.blob(), response.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1]); toast("Review recorded — ZIP downloaded"); }
+        else { const result = await response.json(); toast(`${result.tickets || result.notes || state.notes.length} QA tickets sent`); }
+        hosted.uploadToken = null;
+        hosted.submitted = true;
+        sessionStorage.removeItem(HOSTED_KEY);
+        button.textContent = "Sent";
+        button.disabled = true;
+        return;
+      } catch (error) { toast(safeString(error)); return; }
+      finally { button.disabled = hosted.submitted; button.textContent = hosted.submitted ? "Sent" : hosted.config?.delivery?.mode === "integration" ? "Send QA" : "Finish & download"; }
+    }
+    downloadBlob(blob);
+    toast("ZIP downloaded");
+  }
+
+  function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `qa-review-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
+    link.download = filename || `qa-review-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 30000);
-    toast("ZIP downloaded");
+  }
+
+  async function loadHostedConfig() {
+    if (!hosted.projectKey) { renderHostedIdentity(); return; }
+    try {
+      const response = await fetch(`${hosted.apiBase}/api/widget/config?project=${encodeURIComponent(hosted.projectKey)}&origin=${encodeURIComponent(location.origin)}`);
+      if (!response.ok) throw new Error("Project not recognized");
+      hosted.config = await response.json();
+      Object.assign(installationContext, { organization: hosted.config.organization, projectName: hosted.config.project, environment: hosted.config.environment, delivery: hosted.config.delivery?.provider || "ZIP download" });
+    } catch (error) { hosted.config = { project:"Unverified project", organization:"QAWELL", delivery:{ mode:"download" }, error:safeString(error) }; }
+    if (hosted.invitationToken) persistHostedSession();
+    renderHostedIdentity();
+  }
+
+  async function startHostedReview() {
+    const response = await fetch(`${hosted.apiBase}/api/v1/reviews`, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, origin:location.origin }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not start hosted review");
+    hosted.reviewId = result.reviewId; hosted.uploadToken = result.uploadToken; hosted.maxArchiveBytes = result.maxArchiveBytes; hosted.config = result.config;
+    persistHostedSession();
+    renderHostedIdentity();
+  }
+
+  function persistHostedSession() {
+    try { sessionStorage.setItem(HOSTED_KEY, JSON.stringify({ projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, reviewId:hosted.reviewId, uploadToken:hosted.uploadToken, maxArchiveBytes:hosted.maxArchiveBytes, config:hosted.config })); }
+    catch (error) { console.warn("QAWELL could not persist the hosted session.", error); }
+  }
+
+  function restoreHostedSession() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(HOSTED_KEY) || "null");
+      if (!saved || saved.projectKey !== hosted.projectKey) return;
+      hosted.invitationToken ||= saved.invitationToken || "";
+      hosted.reviewId = saved.reviewId || null;
+      hosted.uploadToken = saved.uploadToken || null;
+      hosted.maxArchiveBytes = saved.maxArchiveBytes || 0;
+      hosted.config = saved.config || null;
+    } catch (error) { console.warn("QAWELL could not restore the hosted session.", error); }
+  }
+
+  function renderHostedIdentity() {
+    const config = hosted.config;
+    const project = config?.project || installationContext.project || "Local review";
+    const detail = config ? `${config.organization} · ${config.environment} · ${config.delivery?.provider || "Raw ZIP download"}${config.delivery?.destination ? ` / ${config.delivery.destination}` : ""}` : "Raw ZIP download · no hosted project";
+    root.querySelectorAll("[data-identity-project],[data-info-project]").forEach((node) => { node.textContent = project; });
+    root.querySelectorAll("[data-identity-detail],[data-info-detail]").forEach((node) => { node.textContent = detail; });
+    const exportButton = $("[data-action=export]");
+    if (exportButton) exportButton.textContent = config?.delivery?.mode === "integration" ? "Send QA" : hosted.invitationToken ? "Finish & download" : "Export ZIP";
+  }
+
+  function readInvitationToken() {
+    const match = location.hash.match(/(?:^#|[&#])qa-invite=([^&]+)/);
+    if (!match) return "";
+    const token = decodeURIComponent(match[1]);
+    const cleaned = location.hash.replace(/([#&])qa-invite=[^&]*&?/, "$1").replace(/^#&?$/, "");
+    history.replaceState(history.state, "", `${location.pathname}${location.search}${cleaned}`);
+    return token;
   }
 
   async function captureElementImage(element, noteId) {
@@ -658,11 +764,15 @@
   function resetSession() {
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(IDENTITY_KEY);
+    sessionStorage.removeItem(HOSTED_KEY);
     state.id = makeId("review");
     state.startedAt = new Date().toISOString();
     state.reviewer = "";
     state.notes = [];
     state.assets = [];
+    hosted.reviewId = null;
+    hosted.uploadToken = null;
+    hosted.submitted = false;
     updatePins();
     toolbar.hidden = true;
     $("#reviewer").value = "";
@@ -733,6 +843,7 @@
     }
 
     const dataMap = {
+      project: "project",
       qaProject: "project",
       qaEnvironment: "environment",
       qaBuild: "build",

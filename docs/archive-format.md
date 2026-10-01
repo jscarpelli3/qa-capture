@@ -1,7 +1,7 @@
 # QAWELL Archive Format
 
 Status: Normative for `qa-review/1`  
-Current generator: QAWELL `0.2.0`
+Current generator: QAWELL `0.3.0`
 
 This document defines the portable contract consumed by importers, renderers, ticket mappers, and AI preparation tools. Consumers must branch on the top-level `schema` value and must not infer a schema version from the generator version.
 
