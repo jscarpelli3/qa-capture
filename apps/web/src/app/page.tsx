@@ -17,7 +17,8 @@ export default function Home() {
         <article><span>02 //</span><h2>Keep the context</h2><p>QAWELL adds the browser, layout, element, and diagnostic evidence automatically.</p></article>
         <article><span>03 //</span><h2>Hand it off</h2><p>Send one structured review package to a developer, a team, or another tool.</p></article>
       </section>
-      <div className="wellMouth" aria-hidden="true"><Image src="/art/qawell-well.png" alt="" width={1254} height={1254} /></div>
+      <div className="wellMouth wellMouthBack" aria-hidden="true"><Image src="/art/qawell-well.png" alt="" width={1254} height={1254} /></div>
+      <div className="wellMouth wellMouthFront" aria-hidden="true"><Image src="/art/qawell-well.png" alt="" width={1254} height={1254} /></div>
     </main>
   );
 }
