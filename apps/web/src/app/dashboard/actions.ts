@@ -176,6 +176,8 @@ export async function verifyProjectOrigin(projectId: string) {
     const message = error instanceof Error ? error.message : "That site URL could not be verified.";
     redirect(`/dashboard/projects/${projectId}?error=${encodeURIComponent(message)}`);
   }
-  await supabase.from("project_origins").update({ verified_at: new Date().toISOString() }).eq("id", originRecord.id);
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin.from("project_origins").update({ verified_at: new Date().toISOString() }).eq("id", originRecord.id).eq("project_id", project.id);
+  if (error) redirect(`/dashboard/projects/${projectId}?error=The+site+responded+but+QAWELL+could+not+save+verification`);
   redirect(`/dashboard/projects/${projectId}?updated=origin`);
 }
