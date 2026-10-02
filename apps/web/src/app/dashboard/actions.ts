@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { deliverInvitationEmail } from "@/lib/invitation-email";
 import { requireProject, requireUser } from "@/lib/auth";
 import { fetchAgencyBrainProjects } from "@/lib/agency-brain";
 import { decryptCredential, encryptCredential } from "@/lib/integration-credentials";
@@ -124,7 +125,7 @@ export async function selectAgencyBrainProject(projectId: string, formData: Form
   redirect(`/dashboard/projects/${projectId}?connected=agency-brain`);
 }
 
-export type InvitationFormState = { error?: string; inviteLink?: string };
+export type InvitationFormState = { error?: string; inviteLink?: string; emailDelivery?: "manual" | "sent" | "failed" };
 
 export async function createInvitation(projectId: string, _state: InvitationFormState, formData: FormData): Promise<InvitationFormState> {
   const { supabase, userId, project } = await requireProject(projectId);
@@ -140,6 +141,7 @@ export async function createInvitation(projectId: string, _state: InvitationForm
   if (!origins?.some(({ origin }) => origin === inviteUrl.origin)) return { error: "The invitation URL must use this project’s verified staging origin." };
 
   const secret = createOpaqueToken();
+  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
   const { error } = await supabase.from("invitations").insert({
     project_id: project.id,
     email: parsed.data.email.toLowerCase(),
@@ -147,12 +149,19 @@ export async function createInvitation(projectId: string, _state: InvitationForm
     secret_hash: hashToken(secret),
     staging_url: inviteUrl.toString(),
     status: "sent",
-    expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    expires_at: expiresAt,
     max_reviews: 1,
     created_by: userId,
   });
   if (error) return { error: "The invitation could not be created." };
-  return { inviteLink: `${inviteUrl.toString().split("#")[0]}#qa-invite=${secret}` };
+  const inviteLink = `${inviteUrl.toString().split("#")[0]}#qa-invite=${secret}`;
+  try {
+    const delivery = await deliverInvitationEmail({ to: parsed.data.email.toLowerCase(), reviewerName: parsed.data.name, projectName: project.name, inviteLink, expiresAt });
+    return { inviteLink, emailDelivery: delivery.status };
+  } catch (deliveryError) {
+    console.error("Invitation created, but email delivery failed.", deliveryError);
+    return { inviteLink, emailDelivery: "failed" };
+  }
 }
 
 export async function updateProjectIdentity(projectId: string, formData: FormData) {

@@ -21,4 +21,17 @@ The Vercel-hosted control plane for QAWELL. The browser capture utility remains 
 - Create a **Private** Blob store and connect it to the project. Vercel supplies `BLOB_STORE_ID` and authenticates deployments with an automatically rotated OIDC token; do not create a long-lived Blob write token.
 - Set production `NEXT_PUBLIC_APP_URL` to the final HTTPS application URL.
 
+## Invitation email
+
+Invitation delivery currently defaults to manual: QAWELL creates the invitation and displays its private link for the project owner to copy and send. Keep `QAWELL_EMAIL_DELIVERY=manual` (or leave it unset) for this behavior.
+
+The Resend integration is scaffolded but disabled. To enable it later:
+
+1. Add and verify the sending domain in Resend.
+2. Add the server-only Vercel secret `RESEND_API_KEY`.
+3. Set `QAWELL_INVITE_FROM` to a sender on the verified domain, such as `QAWELL <reviews@qawell.dev>`.
+4. Set `QAWELL_EMAIL_DELIVERY=resend`.
+
+Never prefix the Resend API key with `NEXT_PUBLIC_`. When enabled, invitation creation sends plain-text and HTML versions and uses an idempotency key to guard against duplicate API requests.
+
 The current slice includes Google OAuth entry/callback routes, cookie-backed Supabase sessions, a protected dashboard, a health endpoint, and the initial relational schema. Upload-token issuance is intentionally deferred until project/invitation authorization is implemented.

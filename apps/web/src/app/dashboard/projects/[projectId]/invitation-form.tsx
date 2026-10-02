@@ -9,7 +9,7 @@ export function InvitationForm({ projectId, stagingUrl }: { projectId: string; s
   return <form className="setupForm inviteForm" action={formAction}>
     <span className="stepNumber">NEW //</span><h2>Invite a reviewer</h2>
     {state.error ? <p className="formError">{state.error}</p> : null}
-    {state.inviteLink ? <div className="inviteResult"><strong>Invitation created</strong><p>Copy this link now. QAWELL stores only a hash of its secret.</p><input readOnly value={state.inviteLink} onFocus={(event) => event.currentTarget.select()} /></div> : null}
+    {state.inviteLink ? <div className="inviteResult"><strong>Invitation created</strong><p>{state.emailDelivery === "sent" ? "Email sent. Copy the link as a backup; QAWELL stores only a hash of its secret." : state.emailDelivery === "failed" ? "The email could not be sent. Copy and send this link yourself; your invitation is still valid." : "Email delivery is not enabled yet. Copy and send this link yourself; QAWELL stores only a hash of its secret."}</p><input readOnly value={state.inviteLink} onFocus={(event) => event.currentTarget.select()} /></div> : null}
     <label>Name<input name="name" maxLength={200} placeholder="Wayne Newton" /></label>
     <label>Email<input name="email" type="email" required maxLength={200} placeholder="wayne@example.com" /></label>
     <label>Page to review<input name="staging_url" type="url" required defaultValue={stagingUrl} /></label>
