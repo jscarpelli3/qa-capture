@@ -122,6 +122,7 @@ button { font:inherit; }
 .inviteList h3 { margin:0 0 20px; font-size:30px; text-transform:uppercase; }
 .inviteRow { display:grid; grid-template-columns:110px 1fr auto; gap:8px 15px; align-items:center; padding:14px 0; border-top:1px solid var(--ink); }
 .inviteRow small { grid-column:2; color:var(--muted); }.inviteRow b { grid-column:3; grid-row:1 / span 2; color:var(--accent); }
+.inviteDelete { grid-column:2 / -1; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; }.inviteDelete label { margin-right:auto; color:var(--muted); font-size:10px; text-transform:uppercase; }.inviteDelete input { vertical-align:middle; accent-color:var(--accent); }.inviteDelete button { border:0; border-bottom:1px solid var(--accent); padding:2px 0; background:transparent; color:var(--accent); font-weight:900; text-transform:uppercase; cursor:pointer; }.inviteDelete button:disabled { cursor:wait; opacity:.55; }.inviteDelete span { width:100%; color:var(--accent); font-size:11px; text-align:right; }
 .inviteStatus { padding:5px 7px; background:#d8d5ca; font-size:10px; text-transform:uppercase; text-align:center; }.status-exhausted,.status-submitted,.status-partially_used { background:var(--moss); color:var(--paper); }
 .buttonDisabled { opacity:.35; cursor:not-allowed; }
 .connectionFlag { display:inline-block; padding:6px 8px; background:var(--moss); color:var(--paper) !important; font:12px ui-monospace,monospace !important; }
