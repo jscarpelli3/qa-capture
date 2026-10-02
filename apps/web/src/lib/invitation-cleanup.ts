@@ -11,6 +11,8 @@ export async function deleteInvitation(invitationId: string, deleteReviews: bool
   const admin = createSupabaseAdminClient();
   let deletedReviews = 0;
 
+  await admin.from("reviews").update({ status: "rejected", rejection_code: "invitation_deleted" }).eq("invitation_id", invitationId).eq("status", "created");
+
   if (deleteReviews) {
     const { data: reviews, error: reviewLookupError } = await admin.from("reviews")
       .select("id,quarantine_path,approved_path")

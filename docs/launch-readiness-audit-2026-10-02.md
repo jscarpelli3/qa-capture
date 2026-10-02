@@ -62,6 +62,15 @@ Until this is exercised, QAWELL should be considered suitable for single-reviewe
 
 ## Direct concurrency audit
 
+### Hardening implemented after this audit
+
+- Invitation start now atomically changes an eligible invitation to `started` before issuing a review nonce. Concurrent attempts using the same link receive `409` instead of creating another review.
+- The widget disables its start control while review creation is pending.
+- Rotating or deleting an invitation rejects its outstanding `created` reviews so unused upload credentials stop working.
+- Widget storage keys are namespaced by project key, with a one-time migration path for matching legacy sessions.
+
+These changes materially reduce the first, fourth, and fifth risks below. The test matrix remains required; historical analysis is retained to explain the threat being addressed.
+
 ### What is already isolated correctly
 
 - Every started review receives a unique database UUID and one-hour upload nonce.

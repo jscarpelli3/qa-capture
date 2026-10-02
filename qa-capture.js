@@ -4,15 +4,19 @@
   const VERSION = "0.4.0";
   const SCHEMA = "qa-review/1";
   const GLOBAL_KEY = "__qaCapture";
-  const STORAGE_KEY = "__qaCaptureSession_v1";
-  const IDENTITY_KEY = "__qaCaptureIdentity_v1";
-  const HOSTED_KEY = "__qawellHostedSession_v1";
   const sourceScript = document.currentScript;
+  const projectKey = sourceScript?.dataset?.project || sourceScript?.dataset?.qaProject || "local";
+  const STORAGE_KEY = `__qaCaptureSession_v1:${projectKey}`;
+  const IDENTITY_KEY = `__qaCaptureIdentity_v1:${projectKey}`;
+  const HOSTED_KEY = `__qawellHostedSession_v1:${projectKey}`;
+  const LEGACY_STORAGE_KEY = "__qaCaptureSession_v1";
+  const LEGACY_IDENTITY_KEY = "__qaCaptureIdentity_v1";
+  const LEGACY_HOSTED_KEY = "__qawellHostedSession_v1";
   const installationContext = captureInstallationContext(sourceScript);
   const incomingInvitationToken = readInvitationToken();
   const hosted = {
     apiBase: sourceScript?.src ? new URL(sourceScript.src).origin : "https://qawell.dev",
-    projectKey: sourceScript?.dataset?.project || sourceScript?.dataset?.qaProject || "",
+    projectKey: projectKey === "local" ? "" : projectKey,
     invitationToken: incomingInvitationToken,
     newInvitation: false,
     config: null,
@@ -268,16 +272,24 @@
   }
 
   async function startReview() {
+    const startButton = $("[data-action=start]");
+    if (startButton.disabled) return;
+    startButton.disabled = true;
+    startButton.textContent = hosted.invitationToken ? "Starting invited review…" : "Starting…";
     state.reviewer = $("#reviewer").value.trim() || "Anonymous reviewer";
-    if (hosted.projectKey && hosted.invitationToken && !hosted.reviewId) {
-      try { await startHostedReview(); }
-      catch (error) { toast(safeString(error)); return; }
+    try {
+      if (hosted.projectKey && hosted.invitationToken && !hosted.reviewId) await startHostedReview();
+      persistSession();
+      toolbar.hidden = false;
+      openPanel(null);
+      toggleSelection(true);
+      toast("Select an element");
+    } catch (error) {
+      toast(safeString(error));
+    } finally {
+      startButton.disabled = false;
+      startButton.textContent = "Start review";
     }
-    persistSession();
-    toolbar.hidden = false;
-    openPanel(null);
-    toggleSelection(true);
-    toast("Select an element");
   }
 
   function renderInvitationSwitch() {
@@ -577,6 +589,7 @@
         notes: state.notes,
         assets,
       }));
+      clearMatchingLegacySession();
     } catch (error) {
       console.warn("QAWELL could not persist this review across navigation.", error);
       toast("Saved, but cross-page storage is full");
@@ -585,13 +598,14 @@
 
   function restoreSession() {
     try {
-      const identity = JSON.parse(sessionStorage.getItem(IDENTITY_KEY) || "null");
+      const useLegacy = legacySessionMatchesProject();
+      const identity = JSON.parse(sessionStorage.getItem(IDENTITY_KEY) || (useLegacy ? sessionStorage.getItem(LEGACY_IDENTITY_KEY) : "") || "null");
       if (identity) {
         state.id = identity.id || state.id;
         state.startedAt = identity.startedAt || state.startedAt;
         state.reviewer = identity.reviewer || "";
       }
-      const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null");
+      const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || (useLegacy ? sessionStorage.getItem(LEGACY_STORAGE_KEY) : "") || "null");
       if (!saved || !Array.isArray(saved.notes)) return;
       state.id = saved.id || state.id;
       state.startedAt = saved.startedAt || state.startedAt;
@@ -777,7 +791,7 @@
 
   function restoreHostedSession() {
     try {
-      const saved = JSON.parse(sessionStorage.getItem(HOSTED_KEY) || "null");
+      const saved = JSON.parse(sessionStorage.getItem(HOSTED_KEY) || sessionStorage.getItem(LEGACY_HOSTED_KEY) || "null");
       if (!saved || saved.projectKey !== hosted.projectKey) {
         hosted.newInvitation = Boolean(incomingInvitationToken);
         return;
@@ -795,6 +809,18 @@
       hosted.invitedReviewerName = saved.invitedReviewerName || null;
       hosted.config = saved.config || null;
     } catch (error) { console.warn("QAWELL could not restore the hosted session.", error); }
+  }
+
+  function legacySessionMatchesProject() {
+    try { return JSON.parse(sessionStorage.getItem(LEGACY_HOSTED_KEY) || "null")?.projectKey === hosted.projectKey; }
+    catch (_) { return false; }
+  }
+
+  function clearMatchingLegacySession() {
+    if (!legacySessionMatchesProject()) return;
+    sessionStorage.removeItem(LEGACY_STORAGE_KEY);
+    sessionStorage.removeItem(LEGACY_IDENTITY_KEY);
+    sessionStorage.removeItem(LEGACY_HOSTED_KEY);
   }
 
   function renderHostedIdentity() {
@@ -996,6 +1022,7 @@
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(IDENTITY_KEY);
     sessionStorage.removeItem(HOSTED_KEY);
+    clearMatchingLegacySession();
     state.id = makeId("review");
     state.startedAt = new Date().toISOString();
     state.reviewer = "";

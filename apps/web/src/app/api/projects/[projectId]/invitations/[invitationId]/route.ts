@@ -21,6 +21,7 @@ export async function PATCH(_request: Request, { params }: RouteContext<"/api/pr
   if ("error" in authorized) return authorized.error;
   const secret = createOpaqueToken();
   const admin = createSupabaseAdminClient();
+  await admin.from("reviews").update({ status: "rejected", rejection_code: "invitation_rotated" }).eq("invitation_id", authorized.invitation.id).eq("status", "created");
   const { error } = await admin.from("invitations").update({ secret_hash: hashToken(secret), status: "draft", accepted_reviews: 0, submitted_at: null, expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() }).eq("id", authorized.invitation.id);
   if (error) return Response.json({ error: "Could not generate a new invitation link." }, { status: 500 });
   const inviteUrl = new URL(authorized.invitation.staging_url);

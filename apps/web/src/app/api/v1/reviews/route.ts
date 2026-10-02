@@ -17,6 +17,13 @@ export async function POST(request: Request) {
   }
   if (new URL(invitation.staging_url).origin !== record.origin) return json({ error: "Invitation origin mismatch." }, 403, record.origin);
 
+  const { data: claimed } = await admin.from("invitations").update({ status: "started" })
+    .eq("id", invitation.id)
+    .eq("accepted_reviews", invitation.accepted_reviews)
+    .in("status", ["draft", "sent", "opened", "partially_used", "delivery_failed"])
+    .select("id").maybeSingle();
+  if (!claimed) return json({ error: "This invitation is already active in another review. Generate a new link if the previous session was abandoned." }, 409, record.origin);
+
   const nonce = createOpaqueToken();
   const { data: review, error } = await admin.from("reviews").insert({
     project_id: record.project.id,
@@ -28,8 +35,10 @@ export async function POST(request: Request) {
     upload_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     delivery_mode: record.integration ? "integration" : "download",
   }).select("id").single();
-  if (error || !review) return json({ error: "Could not start this review." }, 500, record.origin);
-  await admin.from("invitations").update({ status: "started" }).eq("id", invitation.id);
+  if (error || !review) {
+    await admin.from("invitations").update({ status: invitation.status }).eq("id", invitation.id).eq("status", "started");
+    return json({ error: "Could not start this review." }, 500, record.origin);
+  }
   return json({ reviewId: review.id, uploadToken: nonce, maxArchiveBytes: 4 * 1024 * 1024, reviewerName: invitation.reviewer_name, config: widgetConfig(record) }, 201, record.origin);
 }
 
