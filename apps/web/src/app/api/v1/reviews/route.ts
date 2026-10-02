@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   }).select("id").single();
   if (error || !review) return json({ error: "Could not start this review." }, 500, record.origin);
   await admin.from("invitations").update({ status: "started" }).eq("id", invitation.id);
-  return json({ reviewId: review.id, uploadToken: nonce, maxArchiveBytes: 4 * 1024 * 1024, config: widgetConfig(record) }, 201, record.origin);
+  return json({ reviewId: review.id, uploadToken: nonce, maxArchiveBytes: 4 * 1024 * 1024, reviewerName: invitation.reviewer_name, config: widgetConfig(record) }, 201, record.origin);
 }
 
 export async function OPTIONS(request: Request) { return new Response(null, { status: 204, headers: cors(request.headers.get("origin") || "*") }); }

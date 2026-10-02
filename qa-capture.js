@@ -9,21 +9,25 @@
   const HOSTED_KEY = "__qawellHostedSession_v1";
   const sourceScript = document.currentScript;
   const installationContext = captureInstallationContext(sourceScript);
+  const incomingInvitationToken = readInvitationToken();
   const hosted = {
     apiBase: sourceScript?.src ? new URL(sourceScript.src).origin : "https://qawell.dev",
     projectKey: sourceScript?.dataset?.project || sourceScript?.dataset?.qaProject || "",
-    invitationToken: readInvitationToken(),
+    invitationToken: incomingInvitationToken,
+    newInvitation: false,
     config: null,
     reviewId: null,
     uploadToken: null,
     maxArchiveBytes: 0,
+    invitedReviewerName: null,
     submitted: false,
   };
   restoreHostedSession();
   if (hosted.invitationToken) persistHostedSession();
 
   if (window[GLOBAL_KEY]) {
-    window[GLOBAL_KEY].addNote();
+    if (incomingInvitationToken && window[GLOBAL_KEY].acceptInvitation) window[GLOBAL_KEY].acceptInvitation(incomingInvitationToken);
+    else window[GLOBAL_KEY].addNote();
     return;
   }
 
@@ -149,6 +153,13 @@
         <p class="finish-status" data-finish-status role="status"></p>
         <div class="actions"><button data-action="cancel-finish">Keep reviewing</button><button data-action="recovery-download" hidden>Download recovery ZIP</button><button class="primary" data-action="confirm-submit">Confirm &amp; send</button></div>
       </section>
+      <section class="panel invitation-switch" aria-label="Start invited QA review">
+        <h2>New invitation found</h2>
+        <div class="identity"><strong data-switch-project>Invited review</strong><span>Your previous QAWELL session is still open</span><em data-switch-summary></em><em data-switch-destination></em></div>
+        <p class="hint">Starting this invitation replaces the current browser session. Download the current review first if you need to keep it.</p>
+        <p class="finish-status" data-switch-status role="status"></p>
+        <div class="actions"><button data-action="keep-current">Keep current</button><button data-action="download-and-switch">Download current &amp; start</button><button class="primary" data-action="start-invite">Start invited review</button></div>
+      </section>
       <div class="toolbar" hidden>
         <button class="well-mark" data-action="info" aria-label="About this QAWELL review"><img src="https://qawell.dev/icon.png" alt=""></button>
         <button data-action="select" class="primary">＋ Add note</button>
@@ -177,6 +188,9 @@
     if (action === "cancel-finish") openPanel(null);
     if (action === "confirm-submit") await submitHostedReview();
     if (action === "recovery-download") await exportZip(true);
+    if (action === "keep-current") keepCurrentReview();
+    if (action === "download-and-switch") { await exportZip(true); await beginInvitedReview(); }
+    if (action === "start-invite") await beginInvitedReview();
     if (action === "list") renderNotesPanel();
     if (action === "view-note") renderNotesPanel(event.target.closest("[data-note-id]")?.dataset.noteId);
     if (action === "close-notes") openPanel(null);
@@ -189,6 +203,10 @@
   on(document, "click", handlePageClick, true);
   on(window, "scroll", refreshOverlay, true);
   on(window, "resize", refreshOverlay);
+  on(window, "hashchange", () => {
+    const token = readInvitationToken();
+    if (token) acceptInvitation(token);
+  });
   on(window, "error", (event) => {
     state.errors.push({
       type: "error",
@@ -212,6 +230,7 @@
     version: VERSION,
     open: () => openPanel(toolbar.hidden ? "setup" : "info"),
     addNote: beginAddingNote,
+    acceptInvitation,
     export: exportZip,
     destroy,
     reset: resetSession,
@@ -221,7 +240,10 @@
   updatePins();
   loadHostedConfig();
 
-  if (state.reviewer) {
+  if (hosted.newInvitation && state.reviewer) {
+    toolbar.hidden = true;
+    renderInvitationSwitch();
+  } else if (state.reviewer) {
     $("#reviewer").value = state.reviewer;
     toolbar.hidden = false;
     openPanel(null);
@@ -241,6 +263,74 @@
     openPanel(null);
     toggleSelection(true);
     toast("Select an element");
+  }
+
+  function renderInvitationSwitch() {
+    $("[data-switch-project]").textContent = hosted.config?.project || installationContext.project || "Invited review";
+    $("[data-switch-summary]").textContent = state.notes.length ? `The current session contains ${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"}.` : "The current session has no saved notes.";
+    $("[data-switch-destination]").textContent = hosted.config?.delivery?.mode === "integration" ? `The invited review will send to ${hostedDestination()}.` : "The invited review will produce a validated ZIP.";
+    openPanel("invitation-switch");
+  }
+
+  function acceptInvitation(token) {
+    if (!token || token === hosted.invitationToken && hosted.reviewId) return;
+    hosted.invitationToken = token;
+    hosted.newInvitation = true;
+    hosted.reviewId = null;
+    hosted.uploadToken = null;
+    hosted.submitted = false;
+    persistHostedSession();
+    loadHostedConfig();
+    if (state.reviewer) {
+      toggleSelection(false);
+      toolbar.hidden = true;
+      renderInvitationSwitch();
+    } else {
+      openPanel("setup");
+    }
+  }
+
+  function keepCurrentReview() {
+    hosted.invitationToken = "";
+    hosted.newInvitation = false;
+    hosted.reviewId = null;
+    hosted.uploadToken = null;
+    sessionStorage.removeItem(HOSTED_KEY);
+    toolbar.hidden = false;
+    renderHostedIdentity();
+    openPanel(null);
+  }
+
+  async function beginInvitedReview() {
+    const buttons = root.querySelectorAll(".invitation-switch button");
+    buttons.forEach((button) => { button.disabled = true; });
+    $("[data-switch-status]").textContent = "Starting the invited review…";
+    const previousReviewer = state.reviewer;
+    hosted.reviewId = null;
+    hosted.uploadToken = null;
+    hosted.submitted = false;
+    try {
+      await startHostedReview();
+      hosted.newInvitation = false;
+      persistHostedSession();
+      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(IDENTITY_KEY);
+      state.id = makeId("review");
+      state.startedAt = new Date().toISOString();
+      state.reviewer = hosted.invitedReviewerName || previousReviewer;
+      state.notes = [];
+      state.assets = [];
+      persistSession();
+      updatePins();
+      toolbar.hidden = false;
+      openPanel(null);
+      toggleSelection(true);
+      toast("Invited review started — select an element");
+    } catch (error) {
+      $("[data-switch-status]").textContent = safeString(error);
+      $("[data-switch-status]").className = "finish-status error";
+      buttons.forEach((button) => { button.disabled = false; });
+    }
   }
 
   function beginAddingNote() {
@@ -600,30 +690,41 @@
     } catch (error) { hosted.config = { project:"Unverified project", organization:"QAWELL", environment:safeString(error), delivery:{ mode:"download", provider:null, destination:null }, error:safeString(error) }; }
     if (hosted.invitationToken) persistHostedSession();
     renderHostedIdentity();
+    if (hosted.newInvitation && state.reviewer) renderInvitationSwitch();
   }
 
   async function startHostedReview() {
     const response = await fetch(`${hosted.apiBase}/api/v1/reviews`, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, origin:location.origin }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not start hosted review");
-    hosted.reviewId = result.reviewId; hosted.uploadToken = result.uploadToken; hosted.maxArchiveBytes = result.maxArchiveBytes; hosted.config = result.config;
+    hosted.reviewId = result.reviewId; hosted.uploadToken = result.uploadToken; hosted.maxArchiveBytes = result.maxArchiveBytes; hosted.invitedReviewerName = result.reviewerName || null; hosted.config = result.config;
     persistHostedSession();
     renderHostedIdentity();
   }
 
   function persistHostedSession() {
-    try { sessionStorage.setItem(HOSTED_KEY, JSON.stringify({ projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, reviewId:hosted.reviewId, uploadToken:hosted.uploadToken, maxArchiveBytes:hosted.maxArchiveBytes, config:hosted.config })); }
+    try { sessionStorage.setItem(HOSTED_KEY, JSON.stringify({ projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, newInvitation:hosted.newInvitation, reviewId:hosted.reviewId, uploadToken:hosted.uploadToken, maxArchiveBytes:hosted.maxArchiveBytes, invitedReviewerName:hosted.invitedReviewerName, config:hosted.config })); }
     catch (error) { console.warn("QAWELL could not persist the hosted session.", error); }
   }
 
   function restoreHostedSession() {
     try {
       const saved = JSON.parse(sessionStorage.getItem(HOSTED_KEY) || "null");
-      if (!saved || saved.projectKey !== hosted.projectKey) return;
+      if (!saved || saved.projectKey !== hosted.projectKey) {
+        hosted.newInvitation = Boolean(incomingInvitationToken);
+        return;
+      }
+      if (incomingInvitationToken && incomingInvitationToken !== saved.invitationToken) {
+        hosted.newInvitation = true;
+        hosted.config = saved.config || null;
+        return;
+      }
       hosted.invitationToken ||= saved.invitationToken || "";
+      hosted.newInvitation = Boolean(saved.newInvitation);
       hosted.reviewId = saved.reviewId || null;
       hosted.uploadToken = saved.uploadToken || null;
       hosted.maxArchiveBytes = saved.maxArchiveBytes || 0;
+      hosted.invitedReviewerName = saved.invitedReviewerName || null;
       hosted.config = saved.config || null;
     } catch (error) { console.warn("QAWELL could not restore the hosted session.", error); }
   }
