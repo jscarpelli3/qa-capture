@@ -507,7 +507,7 @@ Drive delivery may produce:
 
 ```text
 Client Website QA/
-└── 2026-09-27 — Wayne Newton — 01KXYZ/
+└── 2026-09-27 — Bob Sacamano — 01KXYZ/
     ├── qa-wayne-newton-2026-09-27-01KXYZ.zip
     ├── review.pdf
     ├── review.md
