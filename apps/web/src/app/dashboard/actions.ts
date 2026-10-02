@@ -8,7 +8,6 @@ import { fetchAgencyBrainProjects } from "@/lib/agency-brain";
 import { decryptCredential, encryptCredential } from "@/lib/integration-credentials";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { validateReachableSiteUrl } from "@/lib/site-url";
-import { createOpaqueToken, hashToken } from "@/lib/tokens";
 
 const projectSchema = z.object({
   organization: z.string().trim().min(1).max(160),
@@ -122,39 +121,6 @@ export async function selectAgencyBrainProject(projectId: string, formData: Form
     updated_at: new Date().toISOString(),
   }).eq("id", integration.id);
   redirect(`/dashboard/projects/${projectId}?connected=agency-brain`);
-}
-
-export type InvitationFormState = { error?: string; inviteLink?: string };
-
-export async function createInvitation(projectId: string, _state: InvitationFormState, formData: FormData): Promise<InvitationFormState> {
-  const { supabase, userId, project } = await requireProject(projectId);
-  const parsed = z.object({
-    email: z.email().max(200),
-    name: z.string().trim().max(200).optional(),
-    stagingUrl: z.url(),
-  }).safeParse({ email: formData.get("email"), name: formData.get("name"), stagingUrl: formData.get("staging_url") });
-  if (!parsed.success) return { error: "Check the reviewer email and staging URL." };
-
-  const { data: origins } = await supabase.from("project_origins").select("origin").eq("project_id", project.id);
-  const inviteUrl = new URL(parsed.data.stagingUrl);
-  if (!origins?.some(({ origin }) => origin === inviteUrl.origin)) return { error: "The invitation URL must use this project’s verified staging origin." };
-
-  const secret = createOpaqueToken();
-  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await supabase.from("invitations").insert({
-    project_id: project.id,
-    email: parsed.data.email.toLowerCase(),
-    reviewer_name: parsed.data.name || null,
-    secret_hash: hashToken(secret),
-    staging_url: inviteUrl.toString(),
-    status: "draft",
-    expires_at: expiresAt,
-    max_reviews: 1,
-    created_by: userId,
-  });
-  if (error) return { error: "The invitation could not be created." };
-  const inviteLink = `${inviteUrl.toString().split("#")[0]}#qa-invite=${secret}`;
-  return { inviteLink };
 }
 
 export async function updateProjectIdentity(projectId: string, formData: FormData) {
