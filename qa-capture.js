@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.3.0";
+  const VERSION = "0.4.0";
   const SCHEMA = "qa-review/1";
   const GLOBAL_KEY = "__qaCapture";
   const STORAGE_KEY = "__qaCaptureSession_v1";
@@ -86,6 +86,11 @@
       .target { padding:9px;background:#d8d5ca;border:1px solid #777b70;border-radius:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px; }
       .target-warning { display:none;margin:8px 0 0;padding:8px;border:1px solid #a84f2f;color:#7c321c;background:#ead2c8;font-size:11px; }
       .target-warning.show { display:block; }
+      .screenshot-drop { margin-top:6px;border:1px dashed #777b70;padding:11px;background:#d8d5ca;color:#666b45;font-size:11px; }
+      .screenshot-drop.dragging { border-color:#a84f2f;background:#ead2c8; }
+      .screenshot-drop input { border:0;padding:6px 0;font-size:11px; }
+      .screenshot-preview { display:none;margin-top:8px;grid-template-columns:80px 1fr auto;gap:9px;align-items:center; }
+      .screenshot-preview.show { display:grid; }.screenshot-preview img { width:80px;height:58px;object-fit:cover;border:1px solid #282b27; }.screenshot-preview button { border:0;border-bottom:1px solid #a84f2f;padding:2px 0;background:transparent;color:#a84f2f;font-weight:800;text-transform:uppercase; }
       .types { display:flex;flex-wrap:wrap;gap:6px; }
       .type-pill { position:relative; }
       .type-pill input { position:absolute;opacity:0;pointer-events:none; }
@@ -124,7 +129,7 @@
       <section class="panel note" aria-label="Add QA note">
         <h2>Add note</h2>
         <div class="target"></div>
-        <p class="target-warning">Large area selected. That is okay, but choosing a smaller item may make the note easier to interpret.</p>
+        <p class="target-warning">Large area selected. Choose a smaller element for a more precise note, or keep this selection and attach a screenshot if the larger area is intentional.</p>
         <label>Type</label>
         <div class="types" role="radiogroup" aria-label="Note type">
           <label class="type-pill"><input type="radio" name="kind" value="note" checked><span>Note</span></label>
@@ -135,6 +140,8 @@
         </div>
         <label for="note-text">Feedback</label>
         <textarea id="note-text" placeholder="What should change?"></textarea>
+        <label for="note-screenshot">Screenshot <span class="hint">optional</span></label>
+        <div class="screenshot-drop">Paste, drop, or choose a PNG, JPEG, or WebP image. Maximum 5 MB; QAWELL removes image metadata.<input id="note-screenshot" type="file" accept="image/png,image/jpeg,image/webp"><div class="screenshot-preview"><img alt="Screenshot preview"><span data-screenshot-meta></span><button type="button" data-action="remove-screenshot">Remove</button></div></div>
         <div class="actions"><button data-action="reselect">Choose again</button><button data-action="cancel-note">Cancel</button><button class="primary" data-action="save-note">Save note</button></div>
       </section>
       <section class="panel info" aria-label="QAWELL information">
@@ -176,6 +183,7 @@
   const notePanel = $(".panel.note");
   let pendingTarget = null;
   let pendingClick = null;
+  let pendingScreenshot = null;
 
   on(root, "click", async (event) => {
     const action = event.target.closest("[data-action]")?.dataset.action;
@@ -185,6 +193,7 @@
     if (action === "reselect") reselectTarget();
     if (action === "cancel-note") closeNote();
     if (action === "save-note") await saveNote();
+    if (action === "remove-screenshot") clearPendingScreenshot();
     if (action === "export") await finishReview();
     if (action === "cancel-finish") openPanel(null);
     if (action === "confirm-submit") await submitHostedReview();
@@ -204,6 +213,11 @@
   on(document, "click", handlePageClick, true);
   on(window, "scroll", refreshOverlay, true);
   on(window, "resize", refreshOverlay);
+  on($("#note-screenshot"), "change", async (event) => { const file = event.target.files?.[0]; if (file) await prepareScreenshot(file); });
+  on(notePanel, "paste", async (event) => { const file = Array.from(event.clipboardData?.files || []).find((item) => item.type.startsWith("image/")); if (file) { event.preventDefault(); await prepareScreenshot(file); } });
+  on($(".screenshot-drop"), "dragover", (event) => { event.preventDefault(); $(".screenshot-drop").classList.add("dragging"); });
+  on($(".screenshot-drop"), "dragleave", () => $(".screenshot-drop").classList.remove("dragging"));
+  on($(".screenshot-drop"), "drop", async (event) => { event.preventDefault(); $(".screenshot-drop").classList.remove("dragging"); const file = Array.from(event.dataTransfer?.files || []).find((item) => item.type.startsWith("image/")); if (file) await prepareScreenshot(file); });
   on(window, "hashchange", () => {
     const token = readInvitationToken();
     if (token) acceptInvitation(token);
@@ -372,6 +386,7 @@
     toggleSelection(false);
     renderPendingTarget();
     $("#note-text").value = "";
+    clearPendingScreenshot();
     openPanel("note");
     $("#note-text").focus();
   }
@@ -399,19 +414,16 @@
       },
       assets: [],
     };
-    try {
-      const screenshot = await captureElementImage(pendingTarget, id);
-      if (screenshot) {
-        state.assets.push(screenshot);
-        note.assets.push(screenshot.id);
-      }
-    } catch (error) {
-      note.captureWarnings = [`Element image unavailable: ${safeString(error)}`];
+    if (pendingScreenshot) {
+      const asset = { id:makeId("asset"), kind:"reviewer-screenshot", path:`assets/${id}.webp`, mime:"image/webp", width:pendingScreenshot.width, height:pendingScreenshot.height, bytes:pendingScreenshot.bytes };
+      state.assets.push(asset);
+      note.assets.push(asset.id);
     }
     state.notes.push(note);
     persistSession();
     pendingTarget = null;
     pendingClick = null;
+    clearPendingScreenshot();
     updatePins();
     openPanel(null);
     toast("Note saved");
@@ -431,6 +443,46 @@
     openPanel(null);
     toggleSelection(true);
     toast("Choose a more specific element");
+  }
+
+  async function prepareScreenshot(file) {
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) { toast("Use a PNG, JPEG, or WebP image"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast("Screenshot must be 5 MB or smaller"); return; }
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 2560 / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+      bitmap.close?.();
+      let blob = await canvasBlob(canvas, .84);
+      if (blob.size > 2 * 1024 * 1024) blob = await canvasBlob(canvas, .62);
+      if (blob.size > 2 * 1024 * 1024) throw new Error("Screenshot remains larger than 2 MB after processing");
+      const existingBytes = state.assets.reduce((total, asset) => total + asset.bytes.length, 0);
+      if (existingBytes + blob.size > 3 * 1024 * 1024) throw new Error("This review has reached its screenshot allowance");
+      clearPendingScreenshot();
+      const previewUrl = URL.createObjectURL(blob);
+      pendingScreenshot = { bytes:new Uint8Array(await blob.arrayBuffer()), width, height, previewUrl };
+      $(".screenshot-preview img").src = previewUrl;
+      $("[data-screenshot-meta]").textContent = `${width} × ${height} · ${Math.ceil(blob.size / 1024)} KB`;
+      $(".screenshot-preview").classList.add("show");
+      toast("Screenshot attached");
+    } catch (error) { toast(safeString(error)); }
+  }
+
+  function canvasBlob(canvas, quality) {
+    return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not process screenshot")), "image/webp", quality));
+  }
+
+  function clearPendingScreenshot() {
+    if (pendingScreenshot?.previewUrl) URL.revokeObjectURL(pendingScreenshot.previewUrl);
+    pendingScreenshot = null;
+    $("#note-screenshot").value = "";
+    $(".screenshot-preview").classList.remove("show");
+    $(".screenshot-preview img").removeAttribute("src");
+    $("[data-screenshot-meta]").textContent = "";
   }
 
   function captureElement(element, clickContext) {
@@ -453,6 +505,7 @@
         document: roundRect({ x: rect.x + scrollX, y: rect.y + scrollY, width: rect.width, height: rect.height }),
       },
       styles: pickStyles(styles),
+      anchor: nearestAnchor(element),
       interaction: clickContext,
       ancestors: Array.from(ancestors(element, 5)).map((node) => ({
         tag: node.tagName.toLowerCase(),
@@ -460,6 +513,20 @@
         classes: Array.from(node.classList).slice(0, 10),
       })),
     };
+  }
+
+  function nearestAnchor(element) {
+    let distance = 0;
+    for (let node = element; node?.nodeType === 1; node = node.parentElement) {
+      const value = node.id || (node.tagName === "A" ? node.getAttribute("name") : "");
+      if (value) {
+        const url = new URL(cleanUrl(location.href));
+        url.hash = value;
+        return { url: url.href, value, relationship: distance === 0 ? "exact" : "ancestor", distance, precision: distance === 0 ? "exact" : distance <= 2 ? "near" : "section" };
+      }
+      distance += 1;
+    }
+    return { url: cleanUrl(location.href), value: null, relationship: "page", distance: null, precision: "page" };
   }
 
   function capturePage() {
@@ -763,36 +830,6 @@
     const cleaned = location.hash.replace(/([#&])qa-invite=[^&]*&?/, "$1").replace(/^#&?$/, "");
     history.replaceState(history.state, "", `${location.pathname}${location.search}${cleaned}`);
     return token;
-  }
-
-  async function captureElementImage(element, noteId) {
-    const rect = element.getBoundingClientRect();
-    if (!rect.width || !rect.height || rect.width > 4000 || rect.height > 4000) return null;
-    const clone = element.cloneNode(true);
-    removeSensitiveContent(clone);
-    const xml = new XMLSerializer().serializeToString(clone);
-    const width = Math.max(1, Math.ceil(rect.width));
-    const height = Math.max(1, Math.ceil(rect.height));
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">${xml}</div></foreignObject></svg>`;
-    const image = new Image();
-    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-    try {
-      await new Promise((resolve, reject) => {
-        image.onload = resolve;
-        image.onerror = () => reject(new Error("Browser could not render the selected element"));
-        image.src = url;
-      });
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext("2d").drawImage(image, 0, 0);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (!blob) return null;
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      return { id: makeId("asset"), kind: "element-image", path: `assets/${noteId}.png`, mime: "image/png", width, height, bytes };
-    } finally {
-      URL.revokeObjectURL(url);
-    }
   }
 
   function updatePins() {

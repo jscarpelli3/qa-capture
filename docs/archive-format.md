@@ -1,7 +1,7 @@
 # QAWELL Archive Format
 
 Status: Normative for `qa-review/1`  
-Current generator: QAWELL `0.3.0`
+Current generator: QAWELL `0.4.0`
 
 This document defines the portable contract consumed by importers, renderers, ticket mappers, and AI preparation tools. Consumers must branch on the top-level `schema` value and must not infer a schema version from the generator version.
 
@@ -11,11 +11,14 @@ This document defines the portable contract consumed by importers, renderers, ti
 qa-review-<timestamp>.zip
 ├── manifest.json
 ├── review.json
+├── delivery-map.json       # dashboard-enriched downloads only
 └── assets/
     └── <asset files referenced by review.json>
 ```
 
 Paths use `/` separators and are relative to the archive root.
+
+`delivery-map.json` is a hosted QAWELL enrichment, not reviewer-authored source data. QAWELL never rewrites the original `review.json` after delivery. Consumers join delivery records to notes using `delivery-map.deliveries[].noteId === review.notes[].id`.
 
 An adapter must:
 
@@ -111,6 +114,33 @@ The durable source key for a ticket is:
 ```
 
 An importer must enforce a uniqueness constraint on that pair. Re-importing the same archive must update, skip, or report existing tickets rather than create duplicates.
+
+`target.anchor` records the nearest existing browser anchor without modifying the reviewed page. Its `precision` is `exact`, `near`, `section`, or `page`. The selector and DOM context remain the authoritative technical locator.
+
+Screenshots are optional and reviewer-supplied. QAWELL does not attempt automatic element screenshots. Attached images are decoded, resized to at most 2,560 pixels on the longest edge, re-encoded as WebP to remove metadata, and referenced through the note's `assets` array.
+
+## `delivery-map.json`
+
+Dashboard downloads may contain a generated delivery map:
+
+```json
+{
+  "schema": "qawell-delivery-map/1",
+  "reviewId": "review-id",
+  "generatedAt": "2026-10-02T18:00:00.000Z",
+  "deliveries": [
+    {
+      "noteId": "note-id",
+      "provider": "agency_brain",
+      "project": { "id": "external-project-id", "name": "Hyer WP Migration" },
+      "status": "delivered",
+      "ticket": { "id": "external-ticket-id", "label": "QA #42", "url": null }
+    }
+  ]
+}
+```
+
+The map is generated from current server delivery records at download time, so it may change after retries or additional destination deliveries. It contains no copy of the note body.
 
 ### Page context
 

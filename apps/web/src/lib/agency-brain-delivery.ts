@@ -49,9 +49,32 @@ function ticketTitle(note: ReviewNote) {
 }
 
 function ticketDescription(note: ReviewNote, reviewId?: string) {
-  const lines = [String(note.text || ""), "", `Page: ${safeHttpUrl(note.page?.url) || note.page?.path || "Unknown"}`, `Viewport: ${note.viewport?.width || "?"} × ${note.viewport?.height || "?"}`, `Element: ${note.target?.selector || note.target?.tag || "Unknown"}`];
-  if (note.target?.text) lines.push(`Element text: ${String(note.target.text).slice(0, 500)}`);
-  if (reviewId && note.id) lines.push("", `QAWELL ref: ${reviewId}:${note.id}`);
+  const anchor = safeHttpUrl(note.target?.anchor?.url);
+  const styles = note.target?.styles || {};
+  const lines = [
+    "QAWELL QA NOTE",
+    "",
+    "FEEDBACK",
+    String(note.text || ""),
+    "",
+    "LOCATION",
+    `Page: ${safeHttpUrl(note.page?.url) || note.page?.path || "Unknown"}`,
+    anchor ? `Closest link (${note.target?.anchor?.precision || "page"}): ${anchor}` : "",
+    `Viewport: ${note.viewport?.width || "?"} × ${note.viewport?.height || "?"}`,
+    "",
+    "SELECTED ELEMENT",
+    `Selector: ${note.target?.selector || "Unknown"}`,
+    note.target?.xpath ? `XPath: ${note.target.xpath}` : "",
+    note.target?.tag ? `Tag: ${note.target.tag}` : "",
+  ].filter(Boolean);
+  if (note.target?.text) lines.push(`Text: ${String(note.target.text).slice(0, 500)}`);
+  const styleSummary = ["display", "position", "font-family", "font-size", "font-weight", "line-height", "color", "background-color", "margin", "padding", "width", "height"]
+    .filter((name) => styles[name]).map((name) => `${name}: ${styles[name]}`);
+  if (styleSummary.length) lines.push("", "RELEVANT COMPUTED STYLES", ...styleSummary);
+  const consoleCount = note.diagnostics?.consoleErrors?.length || 0;
+  const requestCount = note.diagnostics?.failedRequests?.length || 0;
+  if (consoleCount || requestCount) lines.push("", "DIAGNOSTICS", `${consoleCount} console errors · ${requestCount} failed requests`);
+  if (reviewId && note.id) lines.push("", "REFERENCE", `Review: ${reviewId}`, `Note: ${note.id}`);
   return lines.join("\n").slice(0, 10_000);
 }
 

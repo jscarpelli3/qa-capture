@@ -40,6 +40,16 @@ export async function ingestReviewArchive(reviewId: string, input: Buffer) {
     }).eq("id", reviewId);
     if (approvalError) throw new IngestError("DUPLICATE_REVIEW", "This review package has already been submitted.");
 
+    const approvedPath = `approved/${reviewRecord.project_id}/${reviewId}.zip`;
+    await put(approvedPath, scannedBuffer, { access: "private", contentType: "application/zip", addRandomSuffix: false, allowOverwrite: false });
+    const { error: retentionError } = await admin.from("reviews").update({ approved_path: approvedPath }).eq("id", reviewId);
+    if (retentionError) {
+      await del(approvedPath).catch(() => undefined);
+      throw new IngestError("RETENTION_FAILED", "The validated review could not be retained.");
+    }
+    await del(storedPath).catch(() => undefined);
+    storedPath = null;
+
     let delivery = { delivered: 0, mode: "download" as "download" | "integration" };
     if (reviewRecord.delivery_mode === "integration") {
       await admin.from("reviews").update({ status: "delivering" }).eq("id", reviewId);
