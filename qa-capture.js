@@ -43,6 +43,7 @@
     assets: [],
   };
   restoreSession();
+  if (hosted.invitationToken && !hosted.reviewId && state.reviewer) hosted.newInvitation = true;
 
   const cleanup = [];
   const host = document.createElement("div");
@@ -735,9 +736,9 @@
     const owner = config ? `For ${config.organization}` : "No hosted project";
     const environment = config?.environment ? `Reviewing the ${config.environment} site.` : "";
     const destination = hostedDestination();
-    const authorized = canSubmitHostedReview();
-    const delivery = authorized && config?.delivery?.mode === "integration"
-      ? `When you finish, your notes will be sent to ${destination}.`
+    const invited = Boolean(hosted.invitationToken);
+    const delivery = invited && config?.delivery?.mode === "integration"
+      ? hosted.reviewId ? `When you finish, your notes will be sent to ${destination}.` : `This invitation will send your notes to ${destination}.`
       : config?.delivery?.mode === "integration"
         ? `This session will download a ZIP. Use a QAWELL invitation link to send notes to ${destination}.`
         : "When you finish, your notes will download as a ZIP.";
@@ -746,7 +747,7 @@
     root.querySelectorAll("[data-identity-environment],[data-info-environment]").forEach((node) => { node.textContent = environment; });
     root.querySelectorAll("[data-identity-delivery],[data-info-delivery]").forEach((node) => { node.textContent = delivery; });
     const exportButton = $("[data-action=export]");
-    if (exportButton && !hosted.submitted) exportButton.textContent = authorized && config?.delivery?.mode === "integration" ? "Send QA" : "Download ZIP";
+    if (exportButton && !hosted.submitted) exportButton.textContent = canSubmitHostedReview() && config?.delivery?.mode === "integration" ? "Send QA" : "Download ZIP";
   }
 
   function hostedDestination() {
