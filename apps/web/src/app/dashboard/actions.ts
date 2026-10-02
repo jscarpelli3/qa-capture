@@ -142,24 +142,26 @@ export async function createInvitation(projectId: string, _state: InvitationForm
 
   const secret = createOpaqueToken();
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await supabase.from("invitations").insert({
+  const { data: invitation, error } = await supabase.from("invitations").insert({
     project_id: project.id,
     email: parsed.data.email.toLowerCase(),
     reviewer_name: parsed.data.name || null,
     secret_hash: hashToken(secret),
     staging_url: inviteUrl.toString(),
-    status: "sent",
+    status: "draft",
     expires_at: expiresAt,
     max_reviews: 1,
     created_by: userId,
-  });
+  }).select("id").single();
   if (error) return { error: "The invitation could not be created." };
   const inviteLink = `${inviteUrl.toString().split("#")[0]}#qa-invite=${secret}`;
   try {
     const delivery = await deliverInvitationEmail({ to: parsed.data.email.toLowerCase(), reviewerName: parsed.data.name, projectName: project.name, inviteLink, expiresAt });
+    if (delivery.status === "sent") await supabase.from("invitations").update({ status: "sent" }).eq("id", invitation.id);
     return { inviteLink, emailDelivery: delivery.status };
   } catch (deliveryError) {
     console.error("Invitation created, but email delivery failed.", deliveryError);
+    await supabase.from("invitations").update({ status: "delivery_failed" }).eq("id", invitation.id);
     return { inviteLink, emailDelivery: "failed" };
   }
 }

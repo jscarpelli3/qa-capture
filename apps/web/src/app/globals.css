@@ -117,6 +117,8 @@ button { font:inherit; }
 .invitationArea { display:grid; grid-template-columns:.75fr 1.25fr; gap:28px; align-items:start; }
 .inviteForm { border:1px solid var(--ink); }.inviteForm h2 { font-size:34px; }
 .inviteResult { margin:20px 0; padding:12px; border:1px solid var(--moss); background:var(--paper); }.inviteResult p { color:var(--muted); font-family:system-ui,sans-serif; }
+.inviteLinkRow { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:8px; }.inviteLinkRow button { min-height:41px; border:1px solid var(--ink); border-radius:0; padding:8px 11px; background:var(--ink); color:var(--paper); font-weight:900; text-transform:uppercase; cursor:pointer; }.copyStatus { display:block; min-height:16px; margin-top:5px; color:var(--moss); font-size:10px; text-transform:uppercase; }.inviteSubmit[aria-busy="true"] { gap:9px; cursor:wait; }.buttonSpinner { width:14px; height:14px; border:2px solid currentColor; border-right-color:transparent; animation:qawell-spin .65s linear infinite; }
+@keyframes qawell-spin { to { transform:rotate(360deg); } }
 .inviteList h3 { margin:0 0 20px; font-size:30px; text-transform:uppercase; }
 .inviteRow { display:grid; grid-template-columns:110px 1fr auto; gap:8px 15px; align-items:center; padding:14px 0; border-top:1px solid var(--ink); }
 .inviteRow small { grid-column:2; color:var(--muted); }.inviteRow b { grid-column:3; grid-row:1 / span 2; color:var(--accent); }
