@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { integrationLabel } from "@/lib/delivery-adapters/catalog";
 
 type WidgetPreviewProps = {
   organization: string;
@@ -10,7 +11,7 @@ type WidgetPreviewProps = {
 
 export function WidgetPreview({ organization, project, environment, provider, destination }: WidgetPreviewProps) {
   const delivery = provider
-    ? `${provider === "agency_brain" ? "Agency Brain" : "Sifter"}${destination ? ` / ${destination}` : ""}`
+    ? `${integrationLabel(provider)}${destination ? ` / ${destination}` : ""}`
     : "Raw ZIP download";
 
   return <div className="widgetPreviewBlock">

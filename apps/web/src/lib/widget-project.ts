@@ -1,5 +1,6 @@
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { integrationLabel } from "@/lib/delivery-adapters/catalog";
 
 export async function getWidgetProject(publicKey: string, requestOrigin: string) {
   const result = await diagnoseWidgetProject(publicKey, requestOrigin);
@@ -33,7 +34,7 @@ export function widgetConfig(record: NonNullable<Awaited<ReturnType<typeof getWi
     environment: record.project.environment_label || "Staging",
     delivery: record.integration ? {
       mode: "integration",
-      provider: record.integration.provider === "agency_brain" ? "Agency Brain" : "Sifter",
+      provider: integrationLabel(record.integration.provider),
       destination: record.integration.external_project_name,
     } : { mode: "download", provider: null, destination: null },
   };
