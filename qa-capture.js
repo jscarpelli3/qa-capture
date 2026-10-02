@@ -93,6 +93,13 @@
       .note-list-meta { display:flex;justify-content:space-between;gap:8px;margin-bottom:5px;color:#777b70;font-size:10px;text-transform:uppercase; }
       .note-list-text { display:block;font:13px/1.45 ui-sans-serif,system-ui,sans-serif; }
       .note-list-page { display:block;margin-top:6px;color:#888;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+      .finish-summary { padding:12px;border:1px solid #282b27;background:#d8d5ca; }
+      .finish-summary strong,.finish-summary span { display:block; }
+      .finish-summary span { margin-top:6px;font:12px/1.45 ui-sans-serif,system-ui,sans-serif; }
+      .finish-status { min-height:18px;margin:10px 0 0;font:12px/1.45 ui-sans-serif,system-ui,sans-serif; }
+      .finish-status.error { padding:9px;border:1px solid #a84f2f;background:#ead2c8;color:#7c321c; }
+      .finish-status.success { color:#465225;font-weight:700; }
+      button:disabled { cursor:wait;opacity:.6; }
       .pins { position:fixed;inset:0;pointer-events:none; }
       .pin { position:absolute;width:25px;height:25px;border:1px solid #e7e4da;border-radius:50%;background:#282b27;color:#e7e4da;box-shadow:2px 2px 0 #a84f2f;font:bold 11px/21px ui-monospace;text-align:center;pointer-events:auto; }
       .toast { display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:9px 13px;border:1px solid #282b27;border-radius:0;background:#e7e4da;color:#282b27;box-shadow:4px 4px 0 #666b45; }
@@ -136,6 +143,12 @@
         <div class="note-list"></div>
         <div class="actions"><button data-action="close-notes">Close</button></div>
       </section>
+      <section class="panel finish" aria-label="Finish QA review">
+        <h2 data-finish-heading>Send this review?</h2>
+        <div class="finish-summary"><strong data-finish-count>0 notes</strong><span data-finish-destination></span></div>
+        <p class="finish-status" data-finish-status role="status"></p>
+        <div class="actions"><button data-action="cancel-finish">Keep reviewing</button><button data-action="recovery-download" hidden>Download recovery ZIP</button><button class="primary" data-action="confirm-submit">Confirm &amp; send</button></div>
+      </section>
       <div class="toolbar" hidden>
         <button class="well-mark" data-action="info" aria-label="About this QAWELL review"><img src="https://qawell.dev/icon.png" alt=""></button>
         <button data-action="select" class="primary">＋ Add note</button>
@@ -160,7 +173,10 @@
     if (action === "reselect") reselectTarget();
     if (action === "cancel-note") closeNote();
     if (action === "save-note") await saveNote();
-    if (action === "export") await exportZip();
+    if (action === "export") await finishReview();
+    if (action === "cancel-finish") openPanel(null);
+    if (action === "confirm-submit") await submitHostedReview();
+    if (action === "recovery-download") await exportZip(true);
     if (action === "list") renderNotesPanel();
     if (action === "view-note") renderNotesPanel(event.target.closest("[data-note-id]")?.dataset.noteId);
     if (action === "close-notes") openPanel(null);
@@ -473,36 +489,93 @@
     };
   }
 
-  async function exportZip() {
-    if (!state.notes.length && !confirm("There are no notes yet. Export an empty review?")) return;
+  function buildArchive() {
     const review = buildReview();
     const files = [
       { name: "manifest.json", data: JSON.stringify({ schema: SCHEMA, generator: review.header.generator, reviewFile: "review.json" }, null, 2) },
       { name: "review.json", data: JSON.stringify(review, null, 2) },
       ...state.assets.map((asset) => ({ name: asset.path, data: asset.bytes })),
     ];
-    const blob = new Blob([makeZip(files)], { type: "application/zip" });
-    if (hosted.reviewId && hosted.uploadToken) {
-      if (hosted.maxArchiveBytes && blob.size > hosted.maxArchiveBytes) { toast("Review is too large to send — downloading recovery ZIP"); downloadBlob(blob); return; }
-      const button = $("[data-action=export]");
-      button.disabled = true;
-      button.textContent = "Sending…";
-      try {
-        const response = await fetch(`${hosted.apiBase}/api/v1/reviews/${hosted.reviewId}/archive`, { method:"POST", headers:{ "Content-Type":"application/zip", Authorization:`Bearer ${hosted.uploadToken}` }, body:blob });
-        if (!response.ok) { const failure = await response.json().catch(() => ({})); throw new Error(failure.error || "QAWELL could not send this review"); }
-        if (response.headers.get("content-type")?.includes("application/zip")) { downloadBlob(await response.blob(), response.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1]); toast("Review recorded — ZIP downloaded"); }
-        else { const result = await response.json(); toast(`${result.tickets || result.notes || state.notes.length} QA tickets sent`); }
-        hosted.uploadToken = null;
-        hosted.submitted = true;
-        sessionStorage.removeItem(HOSTED_KEY);
-        button.textContent = "Sent";
-        button.disabled = true;
-        return;
-      } catch (error) { toast(safeString(error)); return; }
-      finally { button.disabled = hosted.submitted; button.textContent = hosted.submitted ? "Sent" : hosted.config?.delivery?.mode === "integration" ? "Send QA" : "Finish & download"; }
-    }
+    return new Blob([makeZip(files)], { type: "application/zip" });
+  }
+
+  function canSubmitHostedReview() {
+    return Boolean(hosted.invitationToken && hosted.reviewId && hosted.uploadToken);
+  }
+
+  async function finishReview() {
+    if (!state.notes.length && !confirm("There are no notes yet. Download an empty review?")) return;
+    if (!canSubmitHostedReview()) return exportZip();
+    const integrated = hosted.config?.delivery?.mode === "integration";
+    const destination = hostedDestination();
+    $("[data-finish-heading]").textContent = integrated ? "Send this review?" : "Preparing your download";
+    $("[data-finish-count]").textContent = `${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"}`;
+    $("[data-finish-destination]").textContent = integrated ? `This will create QA tickets in ${destination}. This cannot be undone from QAWELL.` : "QAWELL will validate and record this review, then download the ZIP.";
+    setFinishStatus("");
+    $("[data-action=recovery-download]").hidden = true;
+    $("[data-action=cancel-finish]").hidden = !integrated;
+    $("[data-action=confirm-submit]").hidden = !integrated;
+    $("[data-action=confirm-submit]").textContent = "Confirm & send";
+    openPanel("finish");
+    if (!integrated) await submitHostedReview();
+  }
+
+  async function exportZip(recovery = false) {
+    const blob = buildArchive();
     downloadBlob(blob);
-    toast("ZIP downloaded");
+    toast(recovery ? "Recovery ZIP downloaded" : "ZIP downloaded");
+  }
+
+  async function submitHostedReview() {
+    const blob = buildArchive();
+    const integrated = hosted.config?.delivery?.mode === "integration";
+    if (hosted.maxArchiveBytes && blob.size > hosted.maxArchiveBytes) {
+      setFinishStatus("This review is too large to send. Download the ZIP so none of your work is lost.", "error");
+      $("[data-action=recovery-download]").hidden = false;
+      $("[data-action=cancel-finish]").hidden = false;
+      if (!integrated) exportZip(true);
+      return;
+    }
+    const toolbarButton = $("[data-action=export]");
+    const confirmButton = $("[data-action=confirm-submit]");
+    toolbarButton.disabled = true;
+    confirmButton.disabled = true;
+    confirmButton.textContent = integrated ? "Sending…" : "Preparing…";
+    setFinishStatus(integrated ? "Packaging and securely sending your notes…" : "Checking and preparing your ZIP…");
+    try {
+      const response = await fetch(`${hosted.apiBase}/api/v1/reviews/${hosted.reviewId}/archive`, { method:"POST", headers:{ "Content-Type":"application/zip", Authorization:`Bearer ${hosted.uploadToken}` }, body:blob });
+      if (!response.ok) { const failure = await response.json().catch(() => ({})); throw new Error(failure.error || "QAWELL could not finish this review"); }
+      if (response.headers.get("content-type")?.includes("application/zip")) {
+        downloadBlob(await response.blob(), response.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1]);
+        toast("Review recorded — ZIP downloaded");
+      } else {
+        const result = await response.json();
+        setFinishStatus(`${result.tickets || result.notes || state.notes.length} QA ${state.notes.length === 1 ? "ticket was" : "tickets were"} sent successfully.`, "success");
+      }
+      hosted.uploadToken = null;
+      hosted.submitted = true;
+      sessionStorage.removeItem(HOSTED_KEY);
+      toolbarButton.textContent = integrated ? "Sent" : "Downloaded";
+      if (!integrated) openPanel(null);
+      else confirmButton.textContent = "Sent";
+    } catch (error) {
+      setFinishStatus(`${safeString(error)}. Your notes are still here; download a recovery ZIP before leaving this page.`, "error");
+      $("[data-action=recovery-download]").hidden = false;
+      $("[data-action=cancel-finish]").hidden = false;
+      $("[data-action=cancel-finish]").textContent = "Keep reviewing";
+      confirmButton.hidden = true;
+      toast("Could not send QA");
+    } finally {
+      toolbarButton.disabled = hosted.submitted;
+      confirmButton.disabled = hosted.submitted;
+      if (!hosted.submitted && !integrated) toolbarButton.textContent = "Download ZIP";
+    }
+  }
+
+  function setFinishStatus(message, kind = "") {
+    const status = $("[data-finish-status]");
+    status.textContent = message;
+    status.className = `finish-status${kind ? ` ${kind}` : ""}`;
   }
 
   function downloadBlob(blob, filename) {
@@ -560,14 +633,25 @@
     const project = config?.project || installationContext.project || "Local review";
     const owner = config ? `For ${config.organization}` : "No hosted project";
     const environment = config?.environment ? `Reviewing the ${config.environment} site.` : "";
-    const destination = config?.delivery?.provider ? `${config.delivery.provider}${config.delivery.destination ? ` / ${config.delivery.destination}` : ""}` : "";
-    const delivery = destination ? `Notes will be sent to ${destination}.` : "Notes will download as a ZIP.";
+    const destination = hostedDestination();
+    const authorized = canSubmitHostedReview();
+    const delivery = authorized && config?.delivery?.mode === "integration"
+      ? `When you finish, your notes will be sent to ${destination}.`
+      : config?.delivery?.mode === "integration"
+        ? `This session will download a ZIP. Use a QAWELL invitation link to send notes to ${destination}.`
+        : "When you finish, your notes will download as a ZIP.";
     root.querySelectorAll("[data-identity-project],[data-info-project]").forEach((node) => { node.textContent = project; });
     root.querySelectorAll("[data-identity-owner],[data-info-owner]").forEach((node) => { node.textContent = owner; });
     root.querySelectorAll("[data-identity-environment],[data-info-environment]").forEach((node) => { node.textContent = environment; });
     root.querySelectorAll("[data-identity-delivery],[data-info-delivery]").forEach((node) => { node.textContent = delivery; });
     const exportButton = $("[data-action=export]");
-    if (exportButton) exportButton.textContent = config?.delivery?.mode === "integration" ? "Send QA" : hosted.invitationToken ? "Finish & download" : "Export ZIP";
+    if (exportButton && !hosted.submitted) exportButton.textContent = authorized && config?.delivery?.mode === "integration" ? "Send QA" : "Download ZIP";
+  }
+
+  function hostedDestination() {
+    const delivery = hosted.config?.delivery;
+    const provider = delivery?.provider === "agency_brain" ? "Agency Brain" : delivery?.provider === "sifter" ? "Sifter" : delivery?.provider;
+    return provider ? `${provider}${delivery.destination ? ` / ${delivery.destination}` : ""}` : "the configured integration";
   }
 
   function readInvitationToken() {

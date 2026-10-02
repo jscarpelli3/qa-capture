@@ -18,14 +18,14 @@ export function WidgetPreview({ organization, project, environment, provider, de
     <div className="widgetPreviewStage">
       <div className="fakeWidgetPanel">
         <p className="fakeWidgetTitle">Start a QA review</p>
-        <div className="fakeWidgetIdentity"><strong>{project}</strong><span>For {organization}</span><em>Reviewing the {environment} site.</em><em>{provider ? `Notes will be sent to ${delivery}.` : "Notes will download as a ZIP."}</em></div>
+        <div className="fakeWidgetIdentity"><strong>{project}</strong><span>For {organization}</span><em>Reviewing the {environment} site.</em><em>{provider ? `This session will download a ZIP. Use a QAWELL invitation link to send notes to ${delivery}.` : "When you finish, your notes will download as a ZIP."}</em></div>
         <label>Your name</label><div className="fakeWidgetInput">Wayne Newton</div>
         <p className="fakeWidgetHint">Your notes stay attached to this review.</p>
         <button type="button" tabIndex={-1}>Start review</button>
       </div>
       <div className="fakeWidgetToolbar">
         <span className="fakeWell"><Image src="/icon.png" width={128} height={128} alt="" /></span>
-        <span className="fakePrimary">＋ Add note</span><span>0 notes</span><span>{provider ? "Send QA" : "Export ZIP"}</span>
+        <span className="fakePrimary">＋ Add note</span><span>0 notes</span><span>Download ZIP</span>
       </div>
     </div>
   </div>;
