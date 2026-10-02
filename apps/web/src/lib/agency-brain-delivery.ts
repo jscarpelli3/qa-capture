@@ -12,6 +12,7 @@ export async function deliverReviewToAgencyBrain(reviewId: string, review: Qawel
   const { data: credential } = await admin.from("integration_credentials").select("encrypted_secret").eq("integration_id", integration.id).single();
   if (!credential) throw new Error("Agency Brain credential not found");
   const apiKey = decryptCredential(credential.encrypted_secret);
+  const externalTickets = await fetchExistingTickets(apiKey, integration.external_project_id);
   let delivered = 0;
 
   for (const note of review.notes) {
@@ -19,6 +20,12 @@ export async function deliverReviewToAgencyBrain(reviewId: string, review: Qawel
     if (existing?.status === "delivered") { delivered += 1; continue; }
     const deliveryId = existing?.id || crypto.randomUUID();
     await admin.from("review_deliveries").upsert({ id: deliveryId, review_id: reviewId, integration_id: integration.id, note_id: note.id, status: "delivering", attempted_at: new Date().toISOString(), error_code: null });
+    const reconciled = findExistingTicket(externalTickets, review.header?.id, note.id);
+    if (reconciled) {
+      await admin.from("review_deliveries").update({ status: "delivered", external_id: reconciled.id, external_label: reconciled.ticket_number ? `QA #${reconciled.ticket_number}` : reconciled.id, delivered_at: new Date().toISOString() }).eq("id", deliveryId);
+      delivered += 1;
+      continue;
+    }
     const response = await fetch("https://theagencybrain.com/api/external/qa/tickets", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
@@ -41,6 +48,25 @@ export async function deliverReviewToAgencyBrain(reviewId: string, review: Qawel
     delivered += 1;
   }
   return { delivered, mode: "integration" as const };
+}
+
+type ExternalTicket = { id: string; ticket_number?: number; description?: string | null };
+
+async function fetchExistingTickets(apiKey: string, projectId: string): Promise<ExternalTicket[]> {
+  const url = new URL("https://theagencybrain.com/api/external/qa/tickets");
+  url.searchParams.set("project_id", projectId);
+  url.searchParams.set("limit", "500");
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" }, signal: AbortSignal.timeout(15_000), cache: "no-store" });
+  if (!response.ok) throw new Error(`Agency Brain ticket reconciliation failed with ${response.status}`);
+  const result = await response.json();
+  return Array.isArray(result?.tickets) ? result.tickets : [];
+}
+
+function findExistingTicket(tickets: ExternalTicket[], reviewId?: string, noteId?: string) {
+  if (!reviewId || !noteId) return null;
+  const currentReference = `Review: ${reviewId}\nNote: ${noteId}`;
+  const legacyReference = `QAWELL ref: ${reviewId}:${noteId}`;
+  return tickets.find((ticket) => typeof ticket.description === "string" && (ticket.description.includes(currentReference) || ticket.description.includes(legacyReference))) || null;
 }
 
 function ticketTitle(note: ReviewNote) {

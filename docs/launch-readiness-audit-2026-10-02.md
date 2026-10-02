@@ -68,6 +68,7 @@ Until this is exercised, QAWELL should be considered suitable for single-reviewe
 - The widget disables its start control while review creation is pending.
 - Rotating or deleting an invitation rejects its outstanding `created` reviews so unused upload credentials stop working.
 - Widget storage keys are namespaced by project key, with a one-time migration path for matching legacy sessions.
+- Agency Brain delivery now reconciles the embedded QAWELL review/note reference against existing project tickets before creating a ticket, substantially reducing duplicate creation after an external-success/local-write failure.
 
 These changes materially reduce the first, fourth, and fifth risks below. The test matrix remains required; historical analysis is retained to explain the threat being addressed.
 
@@ -104,7 +105,7 @@ Agency Brain does not accept an idempotency key. If ticket creation succeeds but
 
 Internal rule until fixed: do not blindly retry a partially failed review.
 
-Required mitigation: add a QAWELL reference searchable through Agency Brain, reconciliation before retry, and administrator-visible per-note delivery state.
+Implemented mitigation: QAWELL embeds a stable reference and reconciles it through the Agency Brain read API before creation. Remaining work: administrator-visible per-note delivery state and reconciliation beyond the most recent 500 project tickets.
 
 ### High: deleting or rotating an invitation does not revoke an active upload
 
