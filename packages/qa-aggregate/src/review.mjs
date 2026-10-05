@@ -30,7 +30,7 @@ export function parseReviewArchive(input, sourceName = "review.zip") {
   }
 
   for (const path of files.keys()) {
-    if (path !== "manifest.json" && path !== "review.json" && !assetPaths.has(path.toLocaleLowerCase("en-US"))) {
+    if (path !== "manifest.json" && path !== "review.json" && path !== "delivery-map.json" && !assetPaths.has(path.toLocaleLowerCase("en-US"))) {
       throw new ReviewError("UNEXPECTED_FILE", `Archive contains an unexpected file: ${path}`);
     }
   }
@@ -44,12 +44,16 @@ export function parseReviewArchive(input, sourceName = "review.zip") {
     }
   }
 
+  const deliveryMap = files.has("delivery-map.json") ? parseJson(files, "delivery-map.json") : null;
+  if (deliveryMap) validateDeliveryMap(deliveryMap, noteIds);
+
   return {
     sourceName,
     archiveSha256: createHash("sha256").update(archive).digest("hex"),
     manifest,
     review,
     assetsById,
+    deliveryMap,
   };
 }
 
@@ -100,6 +104,20 @@ function validateNote(note, index) {
     throw new ReviewError("INVALID_REVIEW", `${prefix}.viewport requires numeric width and height`);
   }
   if (!Array.isArray(note.assets)) throw new ReviewError("INVALID_REVIEW", `${prefix}.assets must be an array`);
+}
+
+function validateDeliveryMap(deliveryMap, noteIds) {
+  if (!deliveryMap || typeof deliveryMap !== "object" || Array.isArray(deliveryMap)) throw new ReviewError("INVALID_DELIVERY_MAP", "delivery-map.json must contain an object");
+  if (deliveryMap.schema !== "qawell-delivery-map/1") throw new ReviewError("INVALID_DELIVERY_MAP", "Unsupported delivery map schema");
+  if (!Array.isArray(deliveryMap.deliveries)) throw new ReviewError("INVALID_DELIVERY_MAP", "delivery-map.json requires a deliveries array");
+  const mappedNotes = new Set();
+  for (const [index, delivery] of deliveryMap.deliveries.entries()) {
+    if (!delivery || typeof delivery !== "object" || Array.isArray(delivery)) throw new ReviewError("INVALID_DELIVERY_MAP", `deliveries[${index}] must be an object`);
+    requireString(delivery.noteId, `deliveries[${index}].noteId`);
+    if (!noteIds.has(delivery.noteId)) throw new ReviewError("INVALID_DELIVERY_MAP", `Delivery references unknown note ${delivery.noteId}`);
+    if (mappedNotes.has(delivery.noteId)) throw new ReviewError("INVALID_DELIVERY_MAP", `Duplicate delivery for note ${delivery.noteId}`);
+    mappedNotes.add(delivery.noteId);
+  }
 }
 
 function requireObject(value, path) {

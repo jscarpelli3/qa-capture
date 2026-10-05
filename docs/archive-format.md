@@ -127,12 +127,19 @@ Dashboard downloads may contain a generated delivery map:
 {
   "schema": "qawell-delivery-map/1",
   "reviewId": "review-id",
+  "sourceReviewId": "reviewer-generated-review-id",
+  "qawellProject": { "id": "qawell-project-id", "name": "Website redesign" },
+  "usage": {
+    "purpose": "Correlate each captured QA note with the ticket created in the connected system.",
+    "join": "delivery-map.json deliveries[].noteId = review.json notes[].id"
+  },
   "generatedAt": "2026-10-02T18:00:00.000Z",
   "deliveries": [
     {
       "noteId": "note-id",
       "provider": "agency_brain",
-      "project": { "id": "external-project-id", "name": "Hyer WP Migration" },
+      "integrationId": "qawell-integration-id",
+      "externalProject": { "id": "external-project-id", "name": "Hyer WP Migration" },
       "status": "delivered",
       "ticket": { "id": "external-ticket-id", "label": "QA #42", "url": null }
     }
@@ -140,7 +147,7 @@ Dashboard downloads may contain a generated delivery map:
 }
 ```
 
-The map is generated from current server delivery records at download time, so it may change after retries or additional destination deliveries. It contains no copy of the note body.
+The map is generated from current server delivery records at download time, so it may change after retries. It contains no copy of the note body. Join `deliveries[].noteId` to `review.json` → `notes[].id`; the resulting record contains the full captured context plus the external ticket ID and label. The QAWELL aggregate parser accepts this enriched archive and exposes the map as `parsed.deliveryMap`.
 
 ### Page context
 

@@ -25,5 +25,6 @@ declare module "@qa-capture/aggregate" {
       notes: QawellReview["notes"];
       assets: QawellReview["assets"];
     };
+    deliveryMap: Record<string, unknown> | null;
   };
 }

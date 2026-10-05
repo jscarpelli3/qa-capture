@@ -19,23 +19,33 @@ export async function GET(_request: Request, { params }: RouteContext<"/api/proj
   if (!stored) return Response.json({ error: "The retained review package is missing." }, { status: 404 });
   const original = Buffer.from(await new Response(stored.stream).arrayBuffer());
   const files = readZip(original);
+  const sourceReview = JSON.parse(files.get("review.json")?.toString("utf8") || "{}");
   const admin = createSupabaseAdminClient();
+  const { data: project } = await supabase.from("projects").select("id,name").eq("id", projectId).single();
   const { data: deliveries, error } = await admin.from("review_deliveries")
-    .select("note_id,status,external_id,external_label,error_code,attempted_at,delivered_at,integration:project_integrations(provider,external_project_id,external_project_name)")
+    .select("integration_id,note_id,status,external_id,external_label,error_code,attempted_at,delivered_at,integration:project_integrations(provider,external_project_id,external_project_name)")
     .eq("review_id", review.id).order("created_at", { ascending: true });
   if (error) return Response.json({ error: "Could not build this review’s delivery map." }, { status: 500 });
 
   const deliveryMap = {
     schema: "qawell-delivery-map/1",
     reviewId: review.id,
+    sourceReviewId: typeof sourceReview?.header?.id === "string" ? sourceReview.header.id : null,
+    qawellProject: { id: projectId, name: project?.name || null },
     generatedAt: new Date().toISOString(),
+    usage: {
+      purpose: "Correlate each captured QA note with the ticket created in the connected system.",
+      join: "delivery-map.json deliveries[].noteId = review.json notes[].id",
+      sourceOfTruth: "review.json contains the feedback and browser context; this file contains delivery state and external identifiers.",
+    },
     reviewer: { name: review.reviewer_name, email: review.reviewer_email },
     deliveries: (deliveries || []).map((delivery) => {
       const integration = Array.isArray(delivery.integration) ? delivery.integration[0] : delivery.integration;
       return {
         noteId: delivery.note_id,
         provider: integration?.provider || "unknown",
-        project: { id: integration?.external_project_id || null, name: integration?.external_project_name || null },
+        integrationId: delivery.integration_id,
+        externalProject: { id: integration?.external_project_id || null, name: integration?.external_project_name || null },
         status: delivery.status,
         ticket: delivery.external_id ? { id: delivery.external_id, label: delivery.external_label || delivery.external_id, url: null } : null,
         errorCode: delivery.error_code,

@@ -44,6 +44,36 @@ test("rejects unreferenced files", async () => {
   assert.throws(() => parseReviewArchive(archive), (error) => error.code === "UNEXPECTED_FILE");
 });
 
+test("parses a dashboard-enriched archive and exposes its ticket map", async () => {
+  const deliveryMap = {
+    schema: "qawell-delivery-map/1",
+    reviewId: "hosted-review-id",
+    deliveries: [{
+      noteId: "note_example_001",
+      provider: "agency_brain",
+      status: "delivered",
+      ticket: { id: "ticket-id", label: "QA #42" },
+    }],
+  };
+  const archive = createZip([
+    { name: "manifest.json", data: await readFile(exampleManifestUrl) },
+    { name: "review.json", data: await readFile(exampleReviewUrl) },
+    { name: "delivery-map.json", data: JSON.stringify(deliveryMap) },
+  ]);
+  const parsed = parseReviewArchive(archive);
+  assert.equal(parsed.deliveryMap.deliveries[0].noteId, "note_example_001");
+  assert.equal(parsed.deliveryMap.deliveries[0].ticket.id, "ticket-id");
+});
+
+test("rejects a delivery map that points at an unknown note", async () => {
+  const archive = createZip([
+    { name: "manifest.json", data: await readFile(exampleManifestUrl) },
+    { name: "review.json", data: await readFile(exampleReviewUrl) },
+    { name: "delivery-map.json", data: JSON.stringify({ schema: "qawell-delivery-map/1", deliveries: [{ noteId: "missing" }] }) },
+  ]);
+  assert.throws(() => parseReviewArchive(archive), (error) => error.code === "INVALID_DELIVERY_MAP");
+});
+
 test("renders HTML, Markdown, CSV, and a readable XLSX archive", async () => {
   const aggregate = aggregateReviews([parseReviewArchive(await exampleArchive())]);
   assert.match(renderHtml(aggregate), /Combined QA Review/);
