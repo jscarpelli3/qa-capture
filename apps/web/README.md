@@ -1,6 +1,6 @@
 # QAWELL web application
 
-The Vercel-hosted control plane for QAWELL. The browser capture utility remains published separately from the repository root through GitHub Pages.
+The Vercel-hosted control plane for QAWELL. The application also serves the browser capture utility from `/capture.js`, so the dashboard, API, and installed widget ship from the same deployment.
 
 ## Local setup
 
@@ -34,4 +34,4 @@ The Resend integration is scaffolded but disabled. To enable it later:
 
 Never prefix the Resend API key with `NEXT_PUBLIC_`. When enabled, invitation creation sends plain-text and HTML versions and uses an idempotency key to guard against duplicate API requests.
 
-The current slice includes Google OAuth entry/callback routes, cookie-backed Supabase sessions, a protected dashboard, a health endpoint, and the initial relational schema. Upload-token issuance is intentionally deferred until project/invitation authorization is implemented.
+The current application includes Google OAuth, cookie-backed Supabase sessions, protected project dashboards, verified project origins, manual invitation links, authenticated review submission, private Blob retention, Agency Brain ticket delivery, and AI-ready enriched ZIP downloads.
