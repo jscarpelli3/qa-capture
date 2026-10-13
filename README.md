@@ -62,7 +62,7 @@ The target site's Content Security Policy or CORS policy may prevent this loader
 Clicking the bookmarklet always begins the add-note flow:
 
 - On the first run, QAWELL asks for the reviewer's name and then activates element selection.
-- On later same-origin pages, it restores the current session and activates selection immediately.
+- On later same-origin pages, it restores the current session with selection mode off. Select **Add note** when you are ready to choose an element.
 - If QAWELL is already running on the page, clicking the bookmarklet activates selection without loading it again.
 
 The bookmarklet must be clicked again after each full navigation. Content Security Policy can prevent remotely hosted scripts from loading; manually pasting the complete script remains the prototype fallback.

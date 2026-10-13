@@ -65,7 +65,7 @@ Behavior:
 
 - On first use for an origin and tab, the reviewer enters their name and then selects an element.
 - If the utility is already present, clicking the bookmark immediately activates add-note selection.
-- After a full navigation, click the bookmark again. The existing same-origin, same-tab session is restored and selection activates immediately.
+- After a full navigation, click the bookmark again. The existing same-origin, same-tab session is restored with selection mode off; select **Add note** when you are ready to choose an element.
 - Single-page application navigation does not remove the utility because the document remains loaded.
 
 Possible blocker: a site's Content Security Policy may disallow scripts from `https://jscarpelli3.github.io`. If the bookmark appears to do nothing, inspect the browser console for a `script-src` CSP error.
