@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.2";
+  const VERSION = "0.4.3";
   const SCHEMA = "qa-review/1";
   const GLOBAL_KEY = "__qaCapture";
   const sourceScript = document.currentScript;
@@ -76,7 +76,7 @@
       .well-mark { width:38px;padding:3px!important;background:#d8d5ca!important; }
       .well-mark img { display:block;width:31px;height:31px;object-fit:contain; }
       .move-widget { width:43px;padding:8px!important; }
-      .move-widget svg { display:block;width:24px;height:24px;stroke:currentColor;stroke-width:2;stroke-linecap:square;stroke-linejoin:miter;fill:none; }
+      .move-widget-icon { display:block;width:24px;height:24px;font-size:22px;line-height:22px;text-align:center; }
       .outline { display:none;position:fixed;border:2px solid #a84f2f;background:#a84f2f1a;pointer-events:none; }
       .panel { display:none;position:fixed;width:min(400px,calc(100vw - 36px));max-height:calc(100vh - 100px);overflow:auto;padding:20px;background:#e7e4da;color:#282b27;border:1px solid #282b27;border-radius:0;box-shadow:9px 9px 0 #666b45;pointer-events:auto; }
       .panel.open { display:block; }
@@ -189,7 +189,7 @@
         <button data-action="select" class="primary">＋ Add note</button>
         <button data-action="list" class="count" title="View saved notes">0 notes</button>
         <button data-action="export">Export ZIP</button>
-        <button class="move-widget" data-action="move-widget" title="Move widget" aria-label="Move widget"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12 4 4m0 5V4h5m3 8 8-8m-5 0h5v5m-8 3-8 8m0-5v5h5m3-8 8 8m-5 0h5v-5"/></svg></button>
+        <button class="move-widget" data-action="move-widget" title="Move widget" aria-label="Move widget"><span class="move-widget-icon" aria-hidden="true"></span></button>
       </div>
       <div class="toast" role="status"></div>
     </div>`;
@@ -1031,7 +1031,9 @@
     $(".qa").dataset.placement = state.widgetPlacement;
     const nextIndex = (WIDGET_PLACEMENTS.indexOf(state.widgetPlacement) + 1) % WIDGET_PLACEMENTS.length;
     const nextPlacement = WIDGET_PLACEMENTS[nextIndex].replace("-", " ");
+    const directionIcons = { "bottom-right":"←", "bottom-left":"↑", "top-left":"→", "top-right":"↓" };
     const moveButton = $("[data-action=move-widget]");
+    $(".move-widget-icon").textContent = directionIcons[state.widgetPlacement];
     moveButton.title = `Move widget to ${nextPlacement}`;
     moveButton.setAttribute("aria-label", moveButton.title);
   }
