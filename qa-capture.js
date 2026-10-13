@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.0";
+  const VERSION = "0.4.1";
   const SCHEMA = "qa-review/1";
   const GLOBAL_KEY = "__qaCapture";
   const sourceScript = document.currentScript;
@@ -12,6 +12,7 @@
   const LEGACY_STORAGE_KEY = "__qaCaptureSession_v1";
   const LEGACY_IDENTITY_KEY = "__qaCaptureIdentity_v1";
   const LEGACY_HOSTED_KEY = "__qawellHostedSession_v1";
+  const WIDGET_PLACEMENTS = ["bottom-right", "bottom-left", "top-left", "top-right"];
   const installationContext = captureInstallationContext(sourceScript);
   const incomingInvitationToken = readInvitationToken();
   const hosted = {
@@ -45,6 +46,7 @@
     selecting: false,
     hovered: null,
     assets: [],
+    widgetPlacement: WIDGET_PLACEMENTS[0],
   };
   restoreSession();
   if (hosted.invitationToken && !hosted.reviewId && state.reviewer) hosted.newInvitation = true;
@@ -63,7 +65,7 @@
       .qa { color:#282b27; font:13px/1.45 ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
       button, input, textarea, select { font:inherit; }
       button { cursor:pointer; }
-      .toolbar { position:fixed;right:18px;bottom:18px;display:flex;gap:0;align-items:center;padding:0;background:#e7e4da;border:1px solid #282b27;border-radius:0;box-shadow:7px 7px 0 #666b45;pointer-events:auto; }
+      .toolbar { position:fixed;display:flex;gap:0;align-items:center;padding:0;background:#e7e4da;border:1px solid #282b27;border-radius:0;box-shadow:7px 7px 0 #666b45;pointer-events:auto; }
       .toolbar button { min-height:42px;border:0;border-right:1px solid #282b27;border-radius:0;padding:8px 11px;background:#e7e4da;color:#282b27;font-weight:800;text-transform:uppercase;letter-spacing:.02em; }
       .toolbar button:last-child { border-right:0; }
       .toolbar button:hover { background:#d8d5ca; }
@@ -74,8 +76,16 @@
       .well-mark { width:38px;padding:3px!important;background:#d8d5ca!important; }
       .well-mark img { display:block;width:31px;height:31px;object-fit:contain; }
       .outline { display:none;position:fixed;border:2px solid #a84f2f;background:#a84f2f1a;pointer-events:none; }
-      .panel { display:none;position:fixed;right:18px;bottom:76px;width:min(400px,calc(100vw - 36px));max-height:calc(100vh - 100px);overflow:auto;padding:20px;background:#e7e4da;color:#282b27;border:1px solid #282b27;border-radius:0;box-shadow:9px 9px 0 #666b45;pointer-events:auto; }
+      .panel { display:none;position:fixed;width:min(400px,calc(100vw - 36px));max-height:calc(100vh - 100px);overflow:auto;padding:20px;background:#e7e4da;color:#282b27;border:1px solid #282b27;border-radius:0;box-shadow:9px 9px 0 #666b45;pointer-events:auto; }
       .panel.open { display:block; }
+      .qa[data-placement="bottom-right"] .toolbar { right:18px;bottom:18px; }
+      .qa[data-placement="bottom-right"] .panel { right:18px;bottom:76px; }
+      .qa[data-placement="bottom-left"] .toolbar { left:18px;bottom:18px; }
+      .qa[data-placement="bottom-left"] .panel { left:18px;bottom:76px; }
+      .qa[data-placement="top-left"] .toolbar { left:18px;top:18px; }
+      .qa[data-placement="top-left"] .panel { left:18px;top:76px; }
+      .qa[data-placement="top-right"] .toolbar { right:18px;top:18px; }
+      .qa[data-placement="top-right"] .panel { right:18px;top:76px; }
       h2 { margin:0 0 14px;font-size:15px;text-transform:uppercase;letter-spacing:.08em; }
       label { display:block;margin:12px 0 6px;font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.06em; }
       input, textarea { width:100%;border:0;border-bottom:1px solid #282b27;border-radius:0;padding:10px 2px;color:#282b27;background:transparent;outline:none; }
@@ -119,7 +129,7 @@
       .toast { display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:9px 13px;border:1px solid #282b27;border-radius:0;background:#e7e4da;color:#282b27;box-shadow:4px 4px 0 #666b45; }
       .toast.show { display:block; }
     </style>
-    <div class="qa">
+    <div class="qa" data-placement="${state.widgetPlacement}">
       <div class="pins"></div>
       <div class="outline"></div>
       <section class="panel setup open" aria-label="QAWELL setup">
@@ -177,6 +187,7 @@
         <button data-action="select" class="primary">＋ Add note</button>
         <button data-action="list" class="count" title="View saved notes">0 notes</button>
         <button data-action="export">Export ZIP</button>
+        <button data-action="move-widget" title="Move widget" aria-label="Move widget">Move</button>
       </div>
       <div class="toast" role="status"></div>
     </div>`;
@@ -188,6 +199,7 @@
   let pendingTarget = null;
   let pendingClick = null;
   let pendingScreenshot = null;
+  updateWidgetPlacement();
 
   on(root, "click", async (event) => {
     const action = event.target.closest("[data-action]")?.dataset.action;
@@ -199,6 +211,7 @@
     if (action === "save-note") await saveNote();
     if (action === "remove-screenshot") clearPendingScreenshot();
     if (action === "export") await finishReview();
+    if (action === "move-widget") moveWidget();
     if (action === "cancel-finish") openPanel(null);
     if (action === "confirm-submit") await submitHostedReview();
     if (action === "recovery-download") await exportZip(true);
@@ -588,6 +601,7 @@
         reviewer: state.reviewer,
         notes: state.notes,
         assets,
+        widgetPlacement: state.widgetPlacement,
       }));
       clearMatchingLegacySession();
     } catch (error) {
@@ -611,6 +625,7 @@
       state.startedAt = saved.startedAt || state.startedAt;
       state.reviewer = saved.reviewer || state.reviewer;
       state.notes = saved.notes;
+      if (WIDGET_PLACEMENTS.includes(saved.widgetPlacement)) state.widgetPlacement = saved.widgetPlacement;
       state.assets = (saved.assets || []).map((asset) => ({
         ...asset,
         bytes: base64ToBytes(asset.bytes),
@@ -1000,6 +1015,23 @@
   function openPanel(name) {
     for (const panel of root.querySelectorAll(".panel")) panel.classList.remove("open");
     if (name) $(`.panel.${name}`)?.classList.add("open");
+  }
+
+  function moveWidget() {
+    const currentIndex = WIDGET_PLACEMENTS.indexOf(state.widgetPlacement);
+    state.widgetPlacement = WIDGET_PLACEMENTS[(currentIndex + 1) % WIDGET_PLACEMENTS.length];
+    updateWidgetPlacement();
+    persistSession();
+    toast(`Widget moved to ${state.widgetPlacement.replace("-", " ")}`);
+  }
+
+  function updateWidgetPlacement() {
+    $(".qa").dataset.placement = state.widgetPlacement;
+    const nextIndex = (WIDGET_PLACEMENTS.indexOf(state.widgetPlacement) + 1) % WIDGET_PLACEMENTS.length;
+    const nextPlacement = WIDGET_PLACEMENTS[nextIndex].replace("-", " ");
+    const moveButton = $("[data-action=move-widget]");
+    moveButton.title = `Move widget to ${nextPlacement}`;
+    moveButton.setAttribute("aria-label", moveButton.title);
   }
 
   function toast(message) {
