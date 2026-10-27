@@ -12,7 +12,7 @@ type InvitationRowProps = {
 export function InvitationRow({ projectId, invitation, submissions }: InvitationRowProps) {
   const router = useRouter();
   const [deleteReviews, setDeleteReviews] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"link" | "delete" | null>(null);
   const [error, setError] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [copied, setCopied] = useState(false);
@@ -23,7 +23,7 @@ export function InvitationRow({ projectId, invitation, submissions }: Invitation
       ? "Delete this invitation and all of its QAWELL QA records? Tickets already sent to integrations will not be deleted."
       : "Delete this invitation? Its existing QAWELL QA records will be preserved.";
     if (!window.confirm(detail)) return;
-    setPending(true);
+    setPendingAction("delete");
     setError("");
     try {
       const response = await fetch(`/api/projects/${projectId}/invitations/${invitation.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deleteReviews }) });
@@ -32,13 +32,13 @@ export function InvitationRow({ projectId, invitation, submissions }: Invitation
       router.refresh();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not delete the invitation.");
-      setPending(false);
+      setPendingAction(null);
     }
   }
 
   async function generateLink() {
     if (!window.confirm("Generate a new link for this reviewer? Their previous invitation link will stop working.")) return;
-    setPending(true);
+    setPendingAction("link");
     setError("");
     try {
       const response = await fetch(`/api/projects/${projectId}/invitations/${invitation.id}`, { method: "PATCH" });
@@ -48,7 +48,7 @@ export function InvitationRow({ projectId, invitation, submissions }: Invitation
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not generate a new invitation link.");
     } finally {
-      setPending(false);
+      setPendingAction(null);
     }
   }
 
@@ -65,9 +65,9 @@ export function InvitationRow({ projectId, invitation, submissions }: Invitation
     <b>{submissions} submitted</b>
     {inviteLink ? <div className="reviewerLink"><code>{inviteLink}</code><button type="button" onClick={copyLink}>{copied ? "Copied!" : "Copy link"}</button><small>Copy it now. For security, QAWELL cannot display this secret again after the page refreshes.</small></div> : null}
     <div className="inviteDelete">
-      <button type="button" onClick={generateLink} disabled={pending}>Generate new link</button>
+      <button type="button" onClick={generateLink} disabled={pendingAction !== null} aria-busy={pendingAction === "link"}>{pendingAction === "link" ? "Generating link…" : "Generate new link"}</button>
       <label><input type="checkbox" checked={deleteReviews} onChange={(event) => setDeleteReviews(event.target.checked)} /> Also delete QA records</label>
-      <button type="button" onClick={removeInvitation} disabled={pending}>{pending ? "Deleting…" : "Delete invite"}</button>
+      <button type="button" onClick={removeInvitation} disabled={pendingAction !== null} aria-busy={pendingAction === "delete"}>{pendingAction === "delete" ? "Deleting…" : "Delete invite"}</button>
       {error ? <span role="alert">{error}</span> : null}
     </div>
   </div>;

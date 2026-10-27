@@ -123,16 +123,34 @@ export async function selectAgencyBrainProject(projectId: string, formData: Form
   redirect(`/dashboard/projects/${projectId}?connected=agency-brain`);
 }
 
-export async function updateProjectIdentity(projectId: string, formData: FormData) {
-  const { supabase, project } = await requireProject(projectId);
-  const parsed = z.object({ organization: z.string().trim().min(1).max(160), project: z.string().trim().min(1).max(160), environment: z.string().trim().min(1).max(80) }).safeParse({ organization: formData.get("organization"), project: formData.get("project"), environment: formData.get("environment") });
-  if (!parsed.success) redirect(`/dashboard/projects/${projectId}?error=Check+the+review+identity+fields`);
-  const [{ error: organizationError }, { error: projectError }] = await Promise.all([
-    supabase.from("organizations").update({ name: parsed.data.organization }).eq("id", project.organization_id),
-    supabase.from("projects").update({ name: parsed.data.project, environment_label: parsed.data.environment }).eq("id", project.id),
+export async function updateProjectDetails(projectId: string, formData: FormData) {
+  const { project } = await requireProject(projectId);
+  const parsed = projectSchema.safeParse({
+    organization: formData.get("organization"),
+    name: formData.get("project"),
+    environment: formData.get("environment"),
+    origin: formData.get("origin"),
+  });
+  if (!parsed.success) redirect(`/dashboard/projects/${projectId}?error=Check+the+project+details+and+try+again`);
+
+  let verifiedSite: Awaited<ReturnType<typeof validateReachableSiteUrl>>;
+  try { verifiedSite = await validateReachableSiteUrl(parsed.data.origin); }
+  catch (error) {
+    const message = error instanceof Error ? error.message : "That site URL could not be verified.";
+    redirect(`/dashboard/projects/${projectId}?error=${encodeURIComponent(message)}`);
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data: originRecord } = await admin.from("project_origins").select("id").eq("project_id", project.id).maybeSingle();
+  const [{ error: organizationError }, { error: projectError }, { error: originError }] = await Promise.all([
+    admin.from("organizations").update({ name: parsed.data.organization }).eq("id", project.organization_id),
+    admin.from("projects").update({ name: parsed.data.name, environment_label: parsed.data.environment || "Staging" }).eq("id", project.id),
+    originRecord
+      ? admin.from("project_origins").update({ origin: verifiedSite.origin, verified_at: new Date().toISOString() }).eq("id", originRecord.id).eq("project_id", project.id)
+      : admin.from("project_origins").insert({ project_id: project.id, origin: verifiedSite.origin, verified_at: new Date().toISOString() }),
   ]);
-  if (organizationError || projectError) redirect(`/dashboard/projects/${projectId}?error=Could+not+update+the+review+identity`);
-  redirect(`/dashboard/projects/${projectId}?updated=identity`);
+  if (organizationError || projectError || originError) redirect(`/dashboard/projects/${projectId}?error=Could+not+update+the+project+details`);
+  redirect(`/dashboard/projects/${projectId}?updated=details`);
 }
 
 export async function verifyProjectOrigin(projectId: string) {

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerEnv } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { PendingButton } from "@/app/dashboard/projects/[projectId]/pending-button";
 
 async function signInWithGoogle() {
   "use server";
@@ -20,7 +21,7 @@ export default function LoginPage() {
       <div className="panelIndex" aria-hidden="true">ACCESS<br />/01</div>
       <h1>Sign<br />in.</h1>
       <p className="panelNote">Google verifies your identity.<br />Drive access is never requested here.</p>
-      <form action={signInWithGoogle}><button className="button" type="submit">Continue with Google</button></form>
+      <form action={signInWithGoogle}><PendingButton className="button" idle="Continue with Google" pending="Opening Google…" /></form>
     </section></main>
   );
 }

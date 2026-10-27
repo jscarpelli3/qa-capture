@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createProject } from "@/app/dashboard/actions";
 import { requireUser } from "@/lib/auth";
+import { PendingButton } from "./projects/[projectId]/pending-button";
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const { supabase, email } = await requireUser();
@@ -30,7 +31,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           <label>Project name<input name="name" required maxLength={160} placeholder="Client website" /></label>
           <label>Environment<input name="environment" maxLength={80} defaultValue="Staging" /></label>
           <label>Allowed site URL<input name="origin" type="url" required placeholder="https://staging.example.com" /></label>
-          <button className="button" type="submit">Create project →</button>
+          <PendingButton className="button" idle="Create project →" pending="Creating project…" />
         </form>
       </section>
     </main>
