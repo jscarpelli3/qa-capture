@@ -37,6 +37,8 @@ Click the note count to review all saved notes. Clicking a numbered pin opens th
 
 Review data is saved under the utility's own key in `sessionStorage`. On another page of the same origin, run the script again and the current review will be restored automatically. A full navigation removes the injected interface itself, so this console-delivered prototype must still be re-run on each page.
 
+Invited hosted reviews keep a separate, one-hour recovery copy of their active upload authorization under QAWELL's own `localStorage` key. This prevents same-origin navigation from silently changing an integrated review into a local-only ZIP; the recovery record is cleared after submission, reset, or expiration.
+
 Some browsers display a warning before allowing pasted console code. Only bypass that warning for code you have personally inspected and trust.
 
 While developing locally, a shorter loader is more convenient:

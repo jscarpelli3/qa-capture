@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.3";
+  const VERSION = "0.4.5";
   const SCHEMA = "qa-review/1";
   const GLOBAL_KEY = "__qaCapture";
   const sourceScript = document.currentScript;
@@ -9,6 +9,7 @@
   const STORAGE_KEY = `__qaCaptureSession_v1:${projectKey}`;
   const IDENTITY_KEY = `__qaCaptureIdentity_v1:${projectKey}`;
   const HOSTED_KEY = `__qawellHostedSession_v1:${projectKey}`;
+  const HOSTED_RECOVERY_KEY = `__qawellHostedActive_v1:${projectKey}`;
   const LEGACY_STORAGE_KEY = "__qaCaptureSession_v1";
   const LEGACY_IDENTITY_KEY = "__qaCaptureIdentity_v1";
   const LEGACY_HOSTED_KEY = "__qawellHostedSession_v1";
@@ -23,6 +24,7 @@
     config: null,
     reviewId: null,
     uploadToken: null,
+    uploadExpiresAt: null,
     maxArchiveBytes: 0,
     invitedReviewerName: null,
     submitted: false,
@@ -49,7 +51,7 @@
     widgetPlacement: WIDGET_PLACEMENTS[0],
   };
   restoreSession();
-  if (hosted.invitationToken && !hosted.reviewId && state.reviewer) hosted.newInvitation = true;
+  if (hosted.invitationToken && !canSubmitHostedReview() && state.reviewer) hosted.newInvitation = true;
 
   const cleanup = [];
   const host = document.createElement("div");
@@ -119,6 +121,8 @@
       .note-list-meta { display:flex;justify-content:space-between;gap:8px;margin-bottom:5px;color:#777b70;font-size:10px;text-transform:uppercase; }
       .note-list-text { display:block;font:13px/1.45 ui-sans-serif,system-ui,sans-serif; }
       .note-list-page { display:block;margin-top:6px;color:#888;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+      .note-list-actions { display:flex;justify-content:flex-end;margin-top:8px; }
+      .note-list-edit { border:0;border-bottom:1px solid #a84f2f;padding:2px 0;background:transparent;color:#a84f2f;font-size:10px;font-weight:800;text-transform:uppercase; }
       .finish-summary { padding:12px;border:1px solid #282b27;background:#d8d5ca; }
       .finish-summary strong,.finish-summary span { display:block; }
       .finish-summary span { margin-top:6px;font:12px/1.45 ui-sans-serif,system-ui,sans-serif; }
@@ -127,7 +131,9 @@
       .finish-status.success { color:#465225;font-weight:700; }
       button:disabled { cursor:wait;opacity:.6; }
       .pins { position:fixed;inset:0;pointer-events:none; }
-      .pin { position:absolute;width:25px;height:25px;border:1px solid #e7e4da;border-radius:50%;background:#282b27;color:#e7e4da;box-shadow:2px 2px 0 #a84f2f;font:bold 11px/21px ui-monospace;text-align:center;pointer-events:auto; }
+      .pin { position:absolute;width:38px;height:38px;border:0;padding:0;background:transparent;filter:drop-shadow(2px 2px 0 #a84f2f);pointer-events:auto; }
+      .pin img { display:block;width:38px;height:38px;object-fit:contain; }
+      .pin span { position:absolute;left:50%;top:8px;display:grid;min-width:17px;height:17px;place-items:center;transform:translateX(-50%);border:1px solid #282b27;border-radius:50%;background:#e7e4da;color:#282b27;font:bold 10px/15px ui-monospace;text-align:center; }
       .toast { display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:9px 13px;border:1px solid #282b27;border-radius:0;background:#e7e4da;color:#282b27;box-shadow:4px 4px 0 #666b45; }
       .toast.show { display:block; }
     </style>
@@ -201,6 +207,7 @@
   let pendingTarget = null;
   let pendingClick = null;
   let pendingScreenshot = null;
+  let editingNoteId = null;
   updateWidgetPlacement();
 
   on(root, "click", async (event) => {
@@ -222,6 +229,7 @@
     if (action === "start-invite") await beginInvitedReview();
     if (action === "list") renderNotesPanel();
     if (action === "view-note") renderNotesPanel(event.target.closest("[data-note-id]")?.dataset.noteId);
+    if (action === "edit-note") editNote(event.target.closest("[data-note-id]")?.dataset.noteId);
     if (action === "close-notes") openPanel(null);
     if (action === "info") openPanel("info");
     if (action === "close-info") openPanel(null);
@@ -315,11 +323,12 @@
   }
 
   function acceptInvitation(token) {
-    if (!token || token === hosted.invitationToken && hosted.reviewId) return;
+    if (!token || token === hosted.invitationToken && canSubmitHostedReview()) return;
     hosted.invitationToken = token;
     hosted.newInvitation = true;
     hosted.reviewId = null;
     hosted.uploadToken = null;
+    hosted.uploadExpiresAt = null;
     hosted.submitted = false;
     persistHostedSession();
     loadHostedConfig();
@@ -337,7 +346,9 @@
     hosted.newInvitation = false;
     hosted.reviewId = null;
     hosted.uploadToken = null;
+    hosted.uploadExpiresAt = null;
     sessionStorage.removeItem(HOSTED_KEY);
+    localStorage.removeItem(HOSTED_RECOVERY_KEY);
     toolbar.hidden = false;
     renderHostedIdentity();
     openPanel(null);
@@ -350,6 +361,7 @@
     const previousReviewer = state.reviewer;
     hosted.reviewId = null;
     hosted.uploadToken = null;
+    hosted.uploadExpiresAt = null;
     hosted.submitted = false;
     try {
       await startHostedReview();
@@ -410,7 +422,9 @@
     event.stopImmediatePropagation();
     pendingTarget = event.target;
     pendingClick = captureClickContext(event, pendingTarget);
+    editingNoteId = null;
     toggleSelection(false);
+    setNoteEditorMode(false);
     renderPendingTarget();
     $("#note-text").value = "";
     clearPendingScreenshot();
@@ -420,8 +434,31 @@
 
   async function saveNote() {
     const text = $("#note-text").value.trim();
-    if (!text || !pendingTarget) {
+    if (!text || (!editingNoteId && !pendingTarget)) {
       toast("Write a note first");
+      return;
+    }
+    if (editingNoteId) {
+      const note = state.notes.find((item) => item.id === editingNoteId);
+      if (!note) { closeNote(); toast("That note is no longer available"); return; }
+      const previousAssetIds = new Set(note.assets || []);
+      note.kind = root.querySelector('input[name="kind"]:checked')?.value || "note";
+      note.text = text;
+      note.updatedAt = new Date().toISOString();
+      if (!pendingScreenshot?.existing) {
+        state.assets = state.assets.filter((asset) => !previousAssetIds.has(asset.id));
+        note.assets = [];
+        if (pendingScreenshot) {
+          const asset = { id:makeId("asset"), kind:"reviewer-screenshot", path:`assets/${note.id}.webp`, mime:"image/webp", width:pendingScreenshot.width, height:pendingScreenshot.height, bytes:pendingScreenshot.bytes };
+          state.assets.push(asset);
+          note.assets.push(asset.id);
+        }
+      }
+      persistSession();
+      resetNoteEditor();
+      updatePins();
+      openPanel(null);
+      toast("Note updated");
       return;
     }
     const id = makeId("note");
@@ -448,25 +485,19 @@
     }
     state.notes.push(note);
     persistSession();
-    pendingTarget = null;
-    pendingClick = null;
-    clearPendingScreenshot();
+    resetNoteEditor();
     updatePins();
     openPanel(null);
     toast("Note saved");
   }
 
   function closeNote() {
-    pendingTarget = null;
-    pendingClick = null;
-    $(".target-warning").classList.remove("show");
+    resetNoteEditor();
     openPanel(null);
   }
 
   function reselectTarget() {
-    pendingTarget = null;
-    pendingClick = null;
-    $(".target-warning").classList.remove("show");
+    resetNoteEditor();
     openPanel(null);
     toggleSelection(true);
     toast("Choose a more specific element");
@@ -487,7 +518,8 @@
       let blob = await canvasBlob(canvas, .84);
       if (blob.size > 2 * 1024 * 1024) blob = await canvasBlob(canvas, .62);
       if (blob.size > 2 * 1024 * 1024) throw new Error("Screenshot remains larger than 2 MB after processing");
-      const existingBytes = state.assets.reduce((total, asset) => total + asset.bytes.length, 0);
+      const editedAssetIds = new Set(state.notes.find((note) => note.id === editingNoteId)?.assets || []);
+      const existingBytes = state.assets.reduce((total, asset) => total + (editedAssetIds.has(asset.id) ? 0 : asset.bytes.length), 0);
       if (existingBytes + blob.size > 3 * 1024 * 1024) throw new Error("This review has reached its screenshot allowance");
       clearPendingScreenshot();
       const previewUrl = URL.createObjectURL(blob);
@@ -510,6 +542,44 @@
     $(".screenshot-preview").classList.remove("show");
     $(".screenshot-preview img").removeAttribute("src");
     $("[data-screenshot-meta]").textContent = "";
+  }
+
+  function resetNoteEditor() {
+    pendingTarget = null;
+    pendingClick = null;
+    editingNoteId = null;
+    clearPendingScreenshot();
+    $(".target-warning").classList.remove("show");
+    setNoteEditorMode(false);
+  }
+
+  function setNoteEditorMode(editing, sequence) {
+    $(".panel.note h2").textContent = editing ? `Edit note #${sequence}` : "Add note";
+    $("[data-action=save-note]").textContent = editing ? "Save changes" : "Save note";
+    $("[data-action=reselect]").hidden = editing;
+  }
+
+  function editNote(noteId) {
+    const note = state.notes.find((item) => item.id === noteId);
+    if (!note) { toast("That note is no longer available"); return; }
+    resetNoteEditor();
+    editingNoteId = note.id;
+    setNoteEditorMode(true, note.sequence);
+    $(".target").textContent = `${note.target?.tag || "element"} · ${note.target?.selector || "saved target"}`;
+    $("#note-text").value = note.text || "";
+    const kind = root.querySelector(`input[name="kind"][value="${CSS.escape(note.kind || "note")}"]`) || root.querySelector('input[name="kind"][value="note"]');
+    if (kind) kind.checked = true;
+    const asset = state.assets.find((item) => (note.assets || []).includes(item.id));
+    if (asset?.bytes) {
+      const blob = new Blob([asset.bytes], { type:asset.mime || "image/webp" });
+      const previewUrl = URL.createObjectURL(blob);
+      pendingScreenshot = { bytes:asset.bytes, width:asset.width, height:asset.height, previewUrl, assetId:asset.id, existing:true };
+      $(".screenshot-preview img").src = previewUrl;
+      $("[data-screenshot-meta]").textContent = `${asset.width || "?"} × ${asset.height || "?"} · ${Math.ceil(asset.bytes.length / 1024)} KB`;
+      $(".screenshot-preview").classList.add("show");
+    }
+    openPanel("note");
+    $("#note-text").focus();
   }
 
   function captureElement(element, clickContext) {
@@ -689,12 +759,15 @@
   }
 
   function canSubmitHostedReview() {
-    return Boolean(hosted.invitationToken && hosted.reviewId && hosted.uploadToken);
+    return Boolean(hosted.reviewId && hosted.uploadToken && (!hosted.uploadExpiresAt || new Date(hosted.uploadExpiresAt) > new Date()));
   }
 
   async function finishReview() {
     if (!state.notes.length && !confirm("There are no notes yet. Download an empty review?")) return;
-    if (!canSubmitHostedReview()) return exportZip();
+    if (!canSubmitHostedReview()) {
+      if (hosted.invitationToken || hosted.reviewId || hosted.config?.delivery?.mode === "integration") return renderDisconnectedReview();
+      return exportZip();
+    }
     const integrated = hosted.config?.delivery?.mode === "integration";
     const destination = hostedDestination();
     $("[data-finish-heading]").textContent = integrated ? "Send this review?" : "Preparing your download";
@@ -713,6 +786,18 @@
     const blob = buildArchive();
     downloadBlob(blob);
     toast(recovery ? "Recovery ZIP downloaded" : "ZIP downloaded");
+  }
+
+  function renderDisconnectedReview() {
+    const integrated = hosted.config?.delivery?.mode === "integration";
+    $("[data-finish-heading]").textContent = "Reconnect this review";
+    $("[data-finish-count]").textContent = `${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"} kept safely in this browser`;
+    $("[data-finish-destination]").textContent = integrated ? `This project sends to ${hostedDestination()}, but its invitation authorization is missing or expired.` : "This invited review is missing its upload authorization.";
+    setFinishStatus("Reopen the original invitation link on this page to reconnect. QAWELL will not silently switch this review to ZIP-only delivery.", "error");
+    $("[data-action=recovery-download]").hidden = false;
+    $("[data-action=cancel-finish]").hidden = false;
+    $("[data-action=confirm-submit]").hidden = true;
+    openPanel("finish");
   }
 
   async function submitHostedReview() {
@@ -742,8 +827,10 @@
         setFinishStatus(`${result.tickets || result.notes || state.notes.length} QA ${state.notes.length === 1 ? "ticket was" : "tickets were"} sent successfully.`, "success");
       }
       hosted.uploadToken = null;
+      hosted.uploadExpiresAt = null;
       hosted.submitted = true;
       sessionStorage.removeItem(HOSTED_KEY);
+      localStorage.removeItem(HOSTED_RECOVERY_KEY);
       toolbarButton.textContent = integrated ? "Sent" : "Downloaded";
       if (!integrated) openPanel(null);
       else confirmButton.textContent = "Sent";
@@ -796,19 +883,27 @@
     const response = await fetch(`${hosted.apiBase}/api/v1/reviews`, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, origin:location.origin }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not start hosted review");
-    hosted.reviewId = result.reviewId; hosted.uploadToken = result.uploadToken; hosted.maxArchiveBytes = result.maxArchiveBytes; hosted.invitedReviewerName = result.reviewerName || null; hosted.config = result.config;
+    hosted.reviewId = result.reviewId; hosted.uploadToken = result.uploadToken; hosted.uploadExpiresAt = result.uploadExpiresAt || null; hosted.maxArchiveBytes = result.maxArchiveBytes; hosted.invitedReviewerName = result.reviewerName || null; hosted.config = result.config;
     persistHostedSession();
     renderHostedIdentity();
   }
 
   function persistHostedSession() {
-    try { sessionStorage.setItem(HOSTED_KEY, JSON.stringify({ projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, newInvitation:hosted.newInvitation, reviewId:hosted.reviewId, uploadToken:hosted.uploadToken, maxArchiveBytes:hosted.maxArchiveBytes, invitedReviewerName:hosted.invitedReviewerName, config:hosted.config })); }
+    const saved = { projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, newInvitation:hosted.newInvitation, reviewId:hosted.reviewId, uploadToken:hosted.uploadToken, uploadExpiresAt:hosted.uploadExpiresAt, maxArchiveBytes:hosted.maxArchiveBytes, invitedReviewerName:hosted.invitedReviewerName, config:hosted.config };
+    try { sessionStorage.setItem(HOSTED_KEY, JSON.stringify(saved)); }
     catch (error) { console.warn("QAWELL could not persist the hosted session.", error); }
+    try {
+      if (canSubmitHostedReview()) localStorage.setItem(HOSTED_RECOVERY_KEY, JSON.stringify(saved));
+      else localStorage.removeItem(HOSTED_RECOVERY_KEY);
+    } catch (error) { console.warn("QAWELL could not create hosted review recovery state.", error); }
   }
 
   function restoreHostedSession() {
     try {
-      const saved = JSON.parse(sessionStorage.getItem(HOSTED_KEY) || sessionStorage.getItem(LEGACY_HOSTED_KEY) || "null");
+      const sessionSaved = sessionStorage.getItem(HOSTED_KEY) || sessionStorage.getItem(LEGACY_HOSTED_KEY);
+      const hasReviewSession = Boolean(sessionStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(IDENTITY_KEY));
+      const recoverySaved = !sessionSaved && hasReviewSession ? localStorage.getItem(HOSTED_RECOVERY_KEY) : null;
+      const saved = JSON.parse(sessionSaved || recoverySaved || "null");
       if (!saved || saved.projectKey !== hosted.projectKey) {
         hosted.newInvitation = Boolean(incomingInvitationToken);
         return;
@@ -822,6 +917,8 @@
       hosted.newInvitation = Boolean(saved.newInvitation);
       hosted.reviewId = saved.reviewId || null;
       hosted.uploadToken = saved.uploadToken || null;
+      hosted.uploadExpiresAt = saved.uploadExpiresAt || null;
+      if (hosted.uploadExpiresAt && new Date(hosted.uploadExpiresAt) <= new Date()) hosted.uploadToken = null;
       hosted.maxArchiveBytes = saved.maxArchiveBytes || 0;
       hosted.invitedReviewerName = saved.invitedReviewerName || null;
       hosted.config = saved.config || null;
@@ -850,14 +947,14 @@
     const delivery = invited && config?.delivery?.mode === "integration"
       ? hosted.reviewId ? `When you finish, your notes will be sent to ${destination}.` : `This invitation will send your notes to ${destination}.`
       : config?.delivery?.mode === "integration"
-        ? `This session will download a ZIP. Use a QAWELL invitation link to send notes to ${destination}.`
+        ? `Invitation authorization is needed to send notes to ${destination}. Reopen the original invitation link to reconnect.`
         : "When you finish, your notes will download as a ZIP.";
     root.querySelectorAll("[data-identity-project],[data-info-project]").forEach((node) => { node.textContent = project; });
     root.querySelectorAll("[data-identity-owner],[data-info-owner]").forEach((node) => { node.textContent = owner; });
     root.querySelectorAll("[data-identity-environment],[data-info-environment]").forEach((node) => { node.textContent = environment; });
     root.querySelectorAll("[data-identity-delivery],[data-info-delivery]").forEach((node) => { node.textContent = delivery; });
     const exportButton = $("[data-action=export]");
-    if (exportButton && !hosted.submitted) exportButton.textContent = canSubmitHostedReview() && config?.delivery?.mode === "integration" ? "Send QA" : "Download ZIP";
+    if (exportButton && !hosted.submitted) exportButton.textContent = config?.delivery?.mode === "integration" ? canSubmitHostedReview() ? "Send QA" : "Reconnect QA" : "Download ZIP";
   }
 
   function hostedDestination() {
@@ -882,10 +979,16 @@
       if (note.page.url !== cleanUrl(location.href)) continue;
       const pin = document.createElement("button");
       pin.className = "pin";
-      pin.textContent = note.sequence;
       pin.title = note.text;
+      pin.setAttribute("aria-label", `Note ${note.sequence}: ${note.text}`);
       pin.dataset.action = "view-note";
       pin.dataset.noteId = note.id;
+      const icon = document.createElement("img");
+      icon.src = "https://qawell.dev/icon.png";
+      icon.alt = "";
+      const number = document.createElement("span");
+      number.textContent = note.sequence;
+      pin.append(icon, number);
       pin.style.left = `${note.target.rect.document.x - scrollX}px`;
       pin.style.top = `${note.target.rect.document.y - scrollY}px`;
       pins.appendChild(pin);
@@ -919,7 +1022,15 @@
       const page = document.createElement("span");
       page.className = "note-list-page";
       page.textContent = note.page?.path || note.page?.url || "Unknown page";
-      item.append(meta, text, page);
+      const actions = document.createElement("div");
+      actions.className = "note-list-actions";
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "note-list-edit";
+      edit.dataset.action = "edit-note";
+      edit.textContent = "Edit note";
+      actions.appendChild(edit);
+      item.append(meta, text, page, actions);
       list.appendChild(item);
     }
     openPanel("review-notes");
@@ -1058,6 +1169,7 @@
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(IDENTITY_KEY);
     sessionStorage.removeItem(HOSTED_KEY);
+    localStorage.removeItem(HOSTED_RECOVERY_KEY);
     clearMatchingLegacySession();
     state.id = makeId("review");
     state.startedAt = new Date().toISOString();
@@ -1066,6 +1178,7 @@
     state.assets = [];
     hosted.reviewId = null;
     hosted.uploadToken = null;
+    hosted.uploadExpiresAt = null;
     hosted.submitted = false;
     updatePins();
     toolbar.hidden = true;

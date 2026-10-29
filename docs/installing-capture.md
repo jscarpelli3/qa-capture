@@ -177,6 +177,7 @@ The working review uses:
 
 ```text
 sessionStorage key: __qaCaptureSession_v1
+localStorage key: __qawellHostedActive_v1 (active hosted authorization only)
 ```
 
 Properties:
@@ -186,6 +187,8 @@ Properties:
 - Does not cross into a different origin
 - Ends when the browser discards that tab's session storage
 - May exceed browser quotas when many images are captured
+
+For invited hosted reviews, QAWELL also keeps a same-origin recovery copy of the active review authorization until its one-hour upload window expires. This small record prevents an ordinary same-origin navigation from silently degrading an Agency Brain review into a local ZIP. It is removed after submission, reset, or expiration. QAWELL never reads storage keys belonging to the reviewed site.
 
 Automatic script-tag installation reloads the utility on each page, after which it restores the saved session. Bookmarklet installation requires clicking the bookmark again after each full page load.
 

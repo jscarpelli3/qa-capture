@@ -17,6 +17,17 @@ export async function POST(request: Request) {
   }
   if (new URL(invitation.staging_url).origin !== record.origin) return json({ error: "Invitation origin mismatch." }, 403, record.origin);
 
+  if (invitation.status === "started") {
+    const { data: activeReview } = await admin.from("reviews").select("id").eq("invitation_id", invitation.id).eq("status", "created").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (activeReview) {
+      const nonce = createOpaqueToken();
+      const uploadExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const { error: resumeError } = await admin.from("reviews").update({ package_nonce_hash: hashToken(nonce), package_nonce_consumed_at: null, upload_expires_at: uploadExpiresAt }).eq("id", activeReview.id).eq("status", "created");
+      if (resumeError) return json({ error: "Could not reconnect this review." }, 500, record.origin);
+      return json({ reviewId: activeReview.id, uploadToken: nonce, uploadExpiresAt, maxArchiveBytes: 4 * 1024 * 1024, reviewerName: invitation.reviewer_name, config: widgetConfig(record), resumed: true }, 200, record.origin);
+    }
+  }
+
   const { data: claimed } = await admin.from("invitations").update({ status: "started" })
     .eq("id", invitation.id)
     .eq("accepted_reviews", invitation.accepted_reviews)
@@ -25,6 +36,7 @@ export async function POST(request: Request) {
   if (!claimed) return json({ error: "This invitation is already active in another review. Generate a new link if the previous session was abandoned." }, 409, record.origin);
 
   const nonce = createOpaqueToken();
+  const uploadExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
   const { data: review, error } = await admin.from("reviews").insert({
     project_id: record.project.id,
     invitation_id: invitation.id,
@@ -32,14 +44,14 @@ export async function POST(request: Request) {
     reviewer_name: invitation.reviewer_name,
     status: "created",
     package_nonce_hash: hashToken(nonce),
-    upload_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    upload_expires_at: uploadExpiresAt,
     delivery_mode: record.integration ? "integration" : "download",
   }).select("id").single();
   if (error || !review) {
     await admin.from("invitations").update({ status: invitation.status }).eq("id", invitation.id).eq("status", "started");
     return json({ error: "Could not start this review." }, 500, record.origin);
   }
-  return json({ reviewId: review.id, uploadToken: nonce, maxArchiveBytes: 4 * 1024 * 1024, reviewerName: invitation.reviewer_name, config: widgetConfig(record) }, 201, record.origin);
+  return json({ reviewId: review.id, uploadToken: nonce, uploadExpiresAt, maxArchiveBytes: 4 * 1024 * 1024, reviewerName: invitation.reviewer_name, config: widgetConfig(record) }, 201, record.origin);
 }
 
 export async function OPTIONS(request: Request) { return new Response(null, { status: 204, headers: cors(request.headers.get("origin") || "*") }); }
