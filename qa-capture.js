@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.5";
+  const VERSION = "0.4.6";
   const SCHEMA = "qa-review/1";
   const GLOBAL_KEY = "__qaCapture";
   const sourceScript = document.currentScript;
@@ -765,7 +765,8 @@
   async function finishReview() {
     if (!state.notes.length && !confirm("There are no notes yet. Download an empty review?")) return;
     if (!canSubmitHostedReview()) {
-      if (hosted.invitationToken || hosted.reviewId || hosted.config?.delivery?.mode === "integration") return renderDisconnectedReview();
+      if (hosted.invitationToken) return reconnectHostedReview();
+      if (hosted.reviewId || hosted.config?.delivery?.mode === "integration") return renderDisconnectedReview();
       return exportZip();
     }
     const integrated = hosted.config?.delivery?.mode === "integration";
@@ -782,18 +783,34 @@
     if (!integrated) await submitHostedReview();
   }
 
+  async function reconnectHostedReview() {
+    const toolbarButton = $("[data-action=export]");
+    toolbarButton.disabled = true;
+    toolbarButton.textContent = "Reconnecting…";
+    try {
+      await startHostedReview();
+      toast("QA reconnected");
+      return finishReview();
+    } catch (error) {
+      renderDisconnectedReview(safeString(error));
+    } finally {
+      toolbarButton.disabled = false;
+      if (!canSubmitHostedReview()) toolbarButton.textContent = "Reconnect QA";
+    }
+  }
+
   async function exportZip(recovery = false) {
     const blob = buildArchive();
     downloadBlob(blob);
     toast(recovery ? "Recovery ZIP downloaded" : "ZIP downloaded");
   }
 
-  function renderDisconnectedReview() {
+  function renderDisconnectedReview(reconnectError = "") {
     const integrated = hosted.config?.delivery?.mode === "integration";
     $("[data-finish-heading]").textContent = "Reconnect this review";
     $("[data-finish-count]").textContent = `${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"} kept safely in this browser`;
-    $("[data-finish-destination]").textContent = integrated ? `This project sends to ${hostedDestination()}, but its invitation authorization is missing or expired.` : "This invited review is missing its upload authorization.";
-    setFinishStatus("Reopen the original invitation link on this page to reconnect. QAWELL will not silently switch this review to ZIP-only delivery.", "error");
+    $("[data-finish-destination]").textContent = integrated ? `This project sends to ${hostedDestination()}, but its QA link authorization is missing or expired.` : "This QA review is missing its upload authorization.";
+    setFinishStatus(reconnectError ? `${reconnectError}. Reopen the project’s QA link on this page and try again.` : "Reopen the project’s QA link on this page to reconnect. QAWELL will not silently switch this review to ZIP-only delivery.", "error");
     $("[data-action=recovery-download]").hidden = false;
     $("[data-action=cancel-finish]").hidden = false;
     $("[data-action=confirm-submit]").hidden = true;
@@ -945,9 +962,9 @@
     const destination = hostedDestination();
     const invited = Boolean(hosted.invitationToken);
     const delivery = invited && config?.delivery?.mode === "integration"
-      ? hosted.reviewId ? `When you finish, your notes will be sent to ${destination}.` : `This invitation will send your notes to ${destination}.`
+      ? hosted.reviewId ? `When you finish, your notes will be sent to ${destination}.` : `This QA link will send your notes to ${destination}.`
       : config?.delivery?.mode === "integration"
-        ? `Invitation authorization is needed to send notes to ${destination}. Reopen the original invitation link to reconnect.`
+        ? `QA link authorization is needed to send notes to ${destination}. Reopen the project’s QA link to reconnect.`
         : "When you finish, your notes will download as a ZIP.";
     root.querySelectorAll("[data-identity-project],[data-info-project]").forEach((node) => { node.textContent = project; });
     root.querySelectorAll("[data-identity-owner],[data-info-owner]").forEach((node) => { node.textContent = owner; });
