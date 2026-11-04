@@ -15,7 +15,7 @@ export async function requireProject(projectId: string) {
   const auth = await requireUser();
   const { data: project } = await auth.supabase
     .from("projects")
-    .select("id,name,public_key,environment_label,organization_id,created_at")
+    .select("id,name,public_key,environment_label,organization_id,site_mode,current_site_url,shopify_store_id,created_at")
     .eq("id", projectId)
     .maybeSingle();
   if (!project) redirect("/dashboard");

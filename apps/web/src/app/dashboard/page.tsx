@@ -30,7 +30,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           <label>Company / workspace<input name="organization" required maxLength={160} placeholder="Your company" /></label>
           <label>Project name<input name="name" required maxLength={160} placeholder="Client website" /></label>
           <label>Environment<input name="environment" maxLength={80} defaultValue="Staging" /></label>
-          <label>Allowed site URL<input name="origin" type="url" required placeholder="https://staging.example.com" /></label>
+          <label>Site type<select name="site_mode" defaultValue="regular"><option value="regular">Regular website</option><option value="shopify_preview">Shopify theme preview</option></select></label>
+          <label>Current site URL<input name="origin" type="url" required placeholder="https://staging.example.com" /></label>
+          <p className="originHelp">For a Shopify preview, QAWELL pins the store ID and safely allows its rotating preview token.</p>
           <PendingButton className="button" idle="Create project →" pending="Creating project…" />
         </form>
       </section>

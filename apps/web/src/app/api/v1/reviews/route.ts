@@ -15,8 +15,6 @@ export async function POST(request: Request) {
   if (!invitation || new Date(invitation.expires_at) <= new Date() || invitation.accepted_reviews >= invitation.max_reviews || ["revoked", "expired", "exhausted"].includes(invitation.status)) {
     return json({ error: "This invitation is invalid or has expired." }, 403, record.origin);
   }
-  if (new URL(invitation.staging_url).origin !== record.origin) return json({ error: "Invitation origin mismatch." }, 403, record.origin);
-
   if (invitation.status === "started") {
     const { data: activeReview } = await admin.from("reviews").select("id").eq("invitation_id", invitation.id).eq("status", "created").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (activeReview) {
