@@ -113,13 +113,14 @@ export async function selectAgencyBrainProject(projectId: string, formData: Form
   const externalProject = projects.find((project) => project.id === externalProjectId.data);
   if (!externalProject) redirect(`/dashboard/projects/${projectId}/integrations/agency-brain/project?error=That+project+is+not+available`);
 
-  await admin.from("project_integrations").update({
+  const { error: activationError } = await admin.from("project_integrations").update({
     external_project_id: externalProject.id,
     external_project_name: externalProject.name,
     status: "active",
     last_verified_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", integration.id);
+  if (activationError) redirect(`/dashboard/projects/${projectId}/integrations/agency-brain/project?error=QAWELL+could+not+finish+the+connection.+Your+API+key+is+still+saved,+so+you+can+try+again`);
   redirect(`/dashboard/projects/${projectId}?connected=agency-brain`);
 }
 
