@@ -1,6 +1,7 @@
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { integrationLabel } from "@/lib/delivery-adapters/catalog";
+import { projectAllowsOrigin, type ProjectSiteMode } from "@/lib/project-site";
 
 export async function getWidgetProject(publicKey: string, requestOrigin: string) {
   const result = await diagnoseWidgetProject(publicKey, requestOrigin);
@@ -9,7 +10,7 @@ export async function getWidgetProject(publicKey: string, requestOrigin: string)
 
 export async function diagnoseWidgetProject(publicKey: string, requestOrigin: string) {
   const admin = createSupabaseAdminClient();
-  const { data: project } = await admin.from("projects").select("id,name,environment_label,organization_id,public_key").eq("public_key", publicKey).maybeSingle();
+  const { data: project } = await admin.from("projects").select("id,name,environment_label,organization_id,public_key,site_mode,current_site_url,shopify_store_id").eq("public_key", publicKey).maybeSingle();
   if (!project) return { record: null, error: "The installed project key was not found." };
   const [{ data: origins }, { data: organization }, { data: integration }] = await Promise.all([
     admin.from("project_origins").select("origin,verified_at").eq("project_id", project.id),
@@ -20,11 +21,22 @@ export async function diagnoseWidgetProject(publicKey: string, requestOrigin: st
   try { normalizedOrigin = new URL(requestOrigin).origin; }
   catch { return { record: null, error: "The browser did not provide a valid site origin." }; }
   const verifiedOrigins = (origins || []).filter((item) => item.verified_at).map((item) => item.origin);
-  if (!verifiedOrigins.includes(normalizedOrigin)) {
+  const configuredOrigin = verifiedOrigins[0];
+  if (!configuredOrigin || !projectAllowsOrigin(project.site_mode as ProjectSiteMode, configuredOrigin, project.shopify_store_id, normalizedOrigin)) {
     const expected = verifiedOrigins[0] || "no verified origin";
     return { record: null, error: `This page is ${normalizedOrigin}; the project allows ${expected}.` };
   }
   return { record: { project, organization, integration, origin: normalizedOrigin }, error: null };
+}
+
+export async function projectAllowsRequestOrigin(projectId: string, requestOrigin: string) {
+  const admin = createSupabaseAdminClient();
+  const [{ data: project }, { data: origins }] = await Promise.all([
+    admin.from("projects").select("site_mode,shopify_store_id").eq("id", projectId).maybeSingle(),
+    admin.from("project_origins").select("origin,verified_at").eq("project_id", projectId),
+  ]);
+  const configuredOrigin = (origins || []).find((item) => item.verified_at)?.origin;
+  return Boolean(project && configuredOrigin && projectAllowsOrigin(project.site_mode as ProjectSiteMode, configuredOrigin, project.shopify_store_id, requestOrigin));
 }
 
 export function widgetConfig(record: NonNullable<Awaited<ReturnType<typeof getWidgetProject>>>) {

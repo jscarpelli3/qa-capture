@@ -4,6 +4,7 @@ import { parseReviewArchive, ArchiveError } from "@qa-capture/aggregate";
 import { deliverReview } from "@/lib/delivery-adapters/deliver-review";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { QawellReview } from "@qa-capture/aggregate";
+import { projectAllowsOrigin, type ProjectSiteMode } from "@/lib/project-site";
 
 export const MAX_ARCHIVE_BYTES = 4 * 1024 * 1024;
 
@@ -89,13 +90,17 @@ function validateReviewContent(review: QawellReview) {
 }
 
 async function assertReviewOrigins(admin: ReturnType<typeof createSupabaseAdminClient>, projectId: string, review: QawellReview) {
-  const { data: origins } = await admin.from("project_origins").select("origin").eq("project_id", projectId);
-  const allowed = new Set((origins || []).map((item) => item.origin));
+  const [{ data: origins }, { data: project }] = await Promise.all([
+    admin.from("project_origins").select("origin,verified_at").eq("project_id", projectId),
+    admin.from("projects").select("site_mode,shopify_store_id").eq("id", projectId).maybeSingle(),
+  ]);
+  const configuredOrigin = (origins || []).find((item) => item.verified_at)?.origin;
+  if (!project || !configuredOrigin) throw new IngestError("ORIGIN_MISMATCH", "The project does not have a verified origin.");
   const urls = [review.header?.platform?.page?.url, ...review.notes.map((note) => note.page?.url)].filter((value): value is string => typeof value === "string" && value.length > 0);
   for (const value of urls) {
     let origin;
     try { const url = new URL(value); if (!["http:", "https:"].includes(url.protocol)) throw new Error(); origin = url.origin; }
     catch { throw new IngestError("INVALID_CAPTURE_URL", "The review contains an invalid page URL."); }
-    if (!allowed.has(origin)) throw new IngestError("ORIGIN_MISMATCH", "The review contains a page outside the project’s verified origin.");
+    if (!projectAllowsOrigin(project.site_mode as ProjectSiteMode, configuredOrigin, project.shopify_store_id, origin)) throw new IngestError("ORIGIN_MISMATCH", "The review contains a page outside the project’s verified origin.");
   }
 }

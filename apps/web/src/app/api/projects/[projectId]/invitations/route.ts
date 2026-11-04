@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createOpaqueToken, hashToken } from "@/lib/tokens";
+import { getServerEnv } from "@/lib/env";
+import { projectAllowsOrigin, type ProjectSiteMode } from "@/lib/project-site";
 
 const invitationSchema = z.object({
   email: z.email().max(200),
@@ -15,7 +17,7 @@ export async function POST(request: Request, { params }: RouteContext<"/api/proj
   const userId = auth?.claims?.sub;
   if (typeof userId !== "string") return Response.json({ error: "Sign in again to create an invitation." }, { status: 401 });
 
-  const { data: project } = await supabase.from("projects").select("id").eq("id", projectId).maybeSingle();
+  const { data: project } = await supabase.from("projects").select("id,site_mode,shopify_store_id").eq("id", projectId).maybeSingle();
   if (!project) return Response.json({ error: "Project not found." }, { status: 404 });
 
   const parsed = invitationSchema.safeParse(await request.json().catch(() => null));
@@ -23,7 +25,8 @@ export async function POST(request: Request, { params }: RouteContext<"/api/proj
 
   const { data: origins } = await supabase.from("project_origins").select("origin").eq("project_id", project.id);
   const inviteUrl = new URL(parsed.data.stagingUrl);
-  if (!origins?.some(({ origin }) => origin === inviteUrl.origin)) {
+  const configuredOrigin = origins?.[0]?.origin;
+  if (!configuredOrigin || !projectAllowsOrigin(project.site_mode as ProjectSiteMode, configuredOrigin, project.shopify_store_id, inviteUrl.origin)) {
     return Response.json({ error: "The invitation URL must use this project’s verified staging origin." }, { status: 400 });
   }
 
@@ -41,5 +44,5 @@ export async function POST(request: Request, { params }: RouteContext<"/api/proj
   });
   if (error) return Response.json({ error: "The invitation could not be created." }, { status: 500 });
 
-  return Response.json({ inviteLink: `${inviteUrl.toString().split("#")[0]}#qa-invite=${secret}` }, { status: 201 });
+  return Response.json({ inviteLink: new URL(`/invite/${secret}`, getServerEnv().NEXT_PUBLIC_APP_URL).toString() }, { status: 201 });
 }

@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { deleteInvitation } from "@/lib/invitation-cleanup";
 import { createOpaqueToken, hashToken } from "@/lib/tokens";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getServerEnv } from "@/lib/env";
 
 async function authorizedInvitation(projectId: string, invitationId: string) {
   const supabase = await createSupabaseServerClient();
@@ -24,8 +25,7 @@ export async function PATCH(_request: Request, { params }: RouteContext<"/api/pr
   await admin.from("reviews").update({ status: "rejected", rejection_code: "invitation_rotated" }).eq("invitation_id", authorized.invitation.id).eq("status", "created");
   const { error } = await admin.from("invitations").update({ secret_hash: hashToken(secret), status: "draft", accepted_reviews: 0, submitted_at: null, expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() }).eq("id", authorized.invitation.id);
   if (error) return Response.json({ error: "Could not generate a new invitation link." }, { status: 500 });
-  const inviteUrl = new URL(authorized.invitation.staging_url);
-  return Response.json({ inviteLink: `${inviteUrl.toString().split("#")[0]}#qa-invite=${secret}` });
+  return Response.json({ inviteLink: new URL(`/invite/${secret}`, getServerEnv().NEXT_PUBLIC_APP_URL).toString() });
 }
 
 export async function DELETE(request: Request, { params }: RouteContext<"/api/projects/[projectId]/invitations/[invitationId]">) {

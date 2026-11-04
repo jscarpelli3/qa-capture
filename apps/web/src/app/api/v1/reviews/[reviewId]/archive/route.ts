@@ -1,6 +1,7 @@
 import { hashToken } from "@/lib/tokens";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ingestReviewArchive, MAX_ARCHIVE_BYTES } from "@/lib/review-ingest";
+import { projectAllowsRequestOrigin } from "@/lib/widget-project";
 
 export const maxDuration = 60;
 
@@ -14,8 +15,7 @@ export async function POST(request: Request, { params }: RouteContext<"/api/v1/r
   const admin = createSupabaseAdminClient();
   const { data: review } = await admin.from("reviews").select("id,project_id,package_nonce_hash,package_nonce_consumed_at,upload_expires_at,status").eq("id", reviewId).maybeSingle();
   if (!review || review.package_nonce_hash !== hashToken(token) || review.package_nonce_consumed_at || new Date(review.upload_expires_at) <= new Date() || review.status !== "created") return json({ error: "Upload authorization is invalid or expired." }, 403, origin);
-  const { data: allowedOrigin } = await admin.from("project_origins").select("origin").eq("project_id", review.project_id).eq("origin", origin).maybeSingle();
-  if (!allowedOrigin) return json({ error: "Upload origin is not authorized." }, 403, origin);
+  if (!await projectAllowsRequestOrigin(review.project_id, origin)) return json({ error: "Upload origin is not authorized." }, 403, origin);
   const consumedAt = new Date().toISOString();
   const { data: consumed } = await admin.from("reviews").update({ package_nonce_consumed_at: consumedAt }).eq("id", reviewId).is("package_nonce_consumed_at", null).select("id").maybeSingle();
   if (!consumed) return json({ error: "Upload authorization was already used." }, 409, origin);

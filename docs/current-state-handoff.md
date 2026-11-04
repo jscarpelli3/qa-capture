@@ -107,6 +107,8 @@ Never add `NEXT_PUBLIC_` to a secret.
 
 ## Database migrations
 
+- `202611040001_shopify_preview_projects.sql` adds regular-vs-Shopify-preview project mode, the mutable current site URL used by stable QAWELL invitation links, and a pinned Shopify store ID. Shopify preview authorization permits only HTTPS hosts shaped like `[rotating token]-[that exact store ID].shopifypreview.com`; it does not wildcard other Shopify stores.
+
 Migration files, in order:
 
 1. `202609280001_initial_platform.sql`
@@ -164,7 +166,7 @@ At the time of this handoff, lint, the Next.js production build, and all eight a
 ## Recent checkpoints
 
 - Connection-resume UX now treats the encrypted server-side credential as durable setup state. A developer who verifies an Agency Brain key can refresh, leave, or return and continue at project selection without re-entering the key. Integrations visibly distinguish available, setup saved, and connected states. The final activation write is checked before success is shown.
-- The integration UI now states the operating limits instead of hiding them: delivery is synchronous and sequential, Agency Brain permits 30 ticket creations per API key per minute, passes should remain under 30 notes, simultaneous large submissions should be avoided, and failed-note self-service retry/background queueing are not available yet. Approved packages and successful ticket mappings remain retained after partial failure.
+- The integration UI now states the operating limits instead of hiding them: delivery is synchronous and sequential, connected passes are capped at 25 notes, Agency Brain permits 30 ticket creations per API key per minute, simultaneous large submissions should be avoided, and failed-note self-service retry/background queueing are not available yet. Approved packages and successful ticket mappings remain retained after partial failure.
 
 - `97105db` — AI-ready retained packages and visible note-to-ticket mapping
 - `1611426` — provider-neutral delivery adapter boundary; Asana/Sifter planning

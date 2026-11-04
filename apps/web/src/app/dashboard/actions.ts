@@ -8,12 +8,14 @@ import { fetchAgencyBrainProjects } from "@/lib/agency-brain";
 import { decryptCredential, encryptCredential } from "@/lib/integration-credentials";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { validateReachableSiteUrl } from "@/lib/site-url";
+import { assertSiteMode } from "@/lib/project-site";
 
 const projectSchema = z.object({
   organization: z.string().trim().min(1).max(160),
   name: z.string().trim().min(1).max(160),
   environment: z.string().trim().max(80).optional(),
   origin: z.url(),
+  siteMode: z.enum(["regular", "shopify_preview"]).default("regular"),
 });
 
 export async function createProject(formData: FormData) {
@@ -23,6 +25,7 @@ export async function createProject(formData: FormData) {
     name: formData.get("name"),
     environment: formData.get("environment"),
     origin: formData.get("origin"),
+    siteMode: formData.get("site_mode") || "regular",
   });
   if (!parsed.success) redirect("/dashboard?error=Check+the+project+details+and+try+again");
 
@@ -37,12 +40,21 @@ export async function createProject(formData: FormData) {
     const message = error instanceof Error ? error.message : "That site URL could not be verified.";
     redirect(`/dashboard?error=${encodeURIComponent(message)}`);
   }
+  let siteConfig: ReturnType<typeof assertSiteMode>;
+  try { siteConfig = assertSiteMode(parsed.data.siteMode, verifiedSite.enteredUrl); }
+  catch (error) {
+    const message = error instanceof Error ? error.message : "Check the Shopify preview URL.";
+    redirect(`/dashboard?error=${encodeURIComponent(message)}`);
+  }
 
   const { data: project, error } = await supabase.from("projects").insert({
     organization_id: organizationId,
     name: parsed.data.name,
     environment_label: parsed.data.environment || "Staging",
     public_key: `qawell_pk_${randomBytes(18).toString("base64url")}`,
+    site_mode: parsed.data.siteMode,
+    current_site_url: verifiedSite.enteredUrl,
+    shopify_store_id: siteConfig.shopifyStoreId,
   }).select("id").single();
   if (error || !project) redirect("/dashboard?error=Could+not+create+the+project");
 
@@ -131,6 +143,7 @@ export async function updateProjectDetails(projectId: string, formData: FormData
     name: formData.get("project"),
     environment: formData.get("environment"),
     origin: formData.get("origin"),
+    siteMode: formData.get("site_mode") || "regular",
   });
   if (!parsed.success) redirect(`/dashboard/projects/${projectId}?error=Check+the+project+details+and+try+again`);
 
@@ -140,12 +153,18 @@ export async function updateProjectDetails(projectId: string, formData: FormData
     const message = error instanceof Error ? error.message : "That site URL could not be verified.";
     redirect(`/dashboard/projects/${projectId}?error=${encodeURIComponent(message)}`);
   }
+  let siteConfig: ReturnType<typeof assertSiteMode>;
+  try { siteConfig = assertSiteMode(parsed.data.siteMode, verifiedSite.enteredUrl); }
+  catch (error) {
+    const message = error instanceof Error ? error.message : "Check the Shopify preview URL.";
+    redirect(`/dashboard/projects/${projectId}?error=${encodeURIComponent(message)}`);
+  }
 
   const admin = createSupabaseAdminClient();
   const { data: originRecord } = await admin.from("project_origins").select("id").eq("project_id", project.id).maybeSingle();
   const [{ error: organizationError }, { error: projectError }, { error: originError }] = await Promise.all([
     admin.from("organizations").update({ name: parsed.data.organization }).eq("id", project.organization_id),
-    admin.from("projects").update({ name: parsed.data.name, environment_label: parsed.data.environment || "Staging" }).eq("id", project.id),
+    admin.from("projects").update({ name: parsed.data.name, environment_label: parsed.data.environment || "Staging", site_mode: parsed.data.siteMode, current_site_url: verifiedSite.enteredUrl, shopify_store_id: siteConfig.shopifyStoreId }).eq("id", project.id),
     originRecord
       ? admin.from("project_origins").update({ origin: verifiedSite.origin, verified_at: new Date().toISOString() }).eq("id", originRecord.id).eq("project_id", project.id)
       : admin.from("project_origins").insert({ project_id: project.id, origin: verifiedSite.origin, verified_at: new Date().toISOString() }),
