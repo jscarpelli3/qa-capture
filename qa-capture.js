@@ -1,8 +1,9 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.6";
+  const VERSION = "0.4.7";
   const SCHEMA = "qa-review/1";
+  const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
   const sourceScript = document.currentScript;
   const projectKey = sourceScript?.dataset?.project || sourceScript?.dataset?.qaProject || "local";
@@ -181,7 +182,7 @@
         <h2 data-finish-heading>Send this review?</h2>
         <div class="finish-summary"><strong data-finish-count>0 notes</strong><span data-finish-destination></span></div>
         <p class="finish-status" data-finish-status role="status"></p>
-        <div class="actions"><button data-action="cancel-finish">Keep reviewing</button><button data-action="recovery-download" hidden>Download recovery ZIP</button><button class="primary" data-action="confirm-submit">Confirm &amp; send</button></div>
+        <div class="actions"><button data-action="cancel-finish">Keep reviewing</button><button data-action="recovery-download" hidden>Download recovery ZIP</button><button data-action="new-pass" hidden>Start another QA pass</button><button class="primary" data-action="confirm-submit">Confirm &amp; send</button></div>
       </section>
       <section class="panel invitation-switch" aria-label="Start invited QA review">
         <h2>New invitation found</h2>
@@ -223,6 +224,7 @@
     if (action === "move-widget") moveWidget();
     if (action === "cancel-finish") openPanel(null);
     if (action === "confirm-submit") await submitHostedReview();
+    if (action === "new-pass") await startFreshHostedPass();
     if (action === "recovery-download") await exportZip(true);
     if (action === "keep-current") keepCurrentReview();
     if (action === "download-and-switch") { await exportZip(true); await beginInvitedReview(); }
@@ -400,7 +402,14 @@
   }
 
   function toggleSelection(force) {
-    state.selecting = typeof force === "boolean" ? force : !state.selecting;
+    const nextSelecting = typeof force === "boolean" ? force : !state.selecting;
+    if (nextSelecting && atIntegrationNoteLimit()) {
+      state.selecting = false;
+      toast(`This QA pass has ${INTEGRATION_NOTE_LIMIT} notes — submit it to keep going`);
+      finishReview();
+      return;
+    }
+    state.selecting = nextSelecting;
     $("[data-action=select]").classList.toggle("active", state.selecting);
     $("[data-action=select]").textContent = state.selecting ? "Cancel selection" : "＋ Add note";
     if (!state.selecting) {
@@ -488,7 +497,7 @@
     resetNoteEditor();
     updatePins();
     openPanel(null);
-    toast("Note saved");
+    toast(atIntegrationNoteLimit() ? `${INTEGRATION_NOTE_LIMIT} / ${INTEGRATION_NOTE_LIMIT} notes — submit this QA pass to keep going` : "Note saved");
   }
 
   function closeNote() {
@@ -776,7 +785,9 @@
     $("[data-finish-destination]").textContent = integrated ? `This will create QA tickets in ${destination}. This cannot be undone from QAWELL.` : "QAWELL will validate and record this review, then download the ZIP.";
     setFinishStatus("");
     $("[data-action=recovery-download]").hidden = true;
+    $("[data-action=new-pass]").hidden = true;
     $("[data-action=cancel-finish]").hidden = !integrated;
+    $("[data-action=cancel-finish]").textContent = "Keep reviewing";
     $("[data-action=confirm-submit]").hidden = !integrated;
     $("[data-action=confirm-submit]").textContent = "Confirm & send";
     openPanel("finish");
@@ -850,7 +861,11 @@
       localStorage.removeItem(HOSTED_RECOVERY_KEY);
       toolbarButton.textContent = integrated ? "Sent" : "Downloaded";
       if (!integrated) openPanel(null);
-      else confirmButton.textContent = "Sent";
+      else {
+        confirmButton.hidden = true;
+        $("[data-action=cancel-finish]").textContent = "Close";
+        $("[data-action=new-pass]").hidden = false;
+      }
     } catch (error) {
       setFinishStatus(`${safeString(error)}. Your notes are still here; download a recovery ZIP before leaving this page.`, "error");
       $("[data-action=recovery-download]").hidden = false;
@@ -862,6 +877,42 @@
       toolbarButton.disabled = hosted.submitted;
       confirmButton.disabled = hosted.submitted;
       if (!hosted.submitted && !integrated) toolbarButton.textContent = "Download ZIP";
+    }
+  }
+
+  async function startFreshHostedPass() {
+    const button = $("[data-action=new-pass]");
+    button.disabled = true;
+    button.textContent = "Starting…";
+    hosted.reviewId = null;
+    hosted.uploadToken = null;
+    hosted.uploadExpiresAt = null;
+    hosted.submitted = false;
+    try {
+      await startHostedReview();
+      state.id = makeId("review");
+      state.startedAt = new Date().toISOString();
+      state.notes = [];
+      state.assets = [];
+      state.errors = [];
+      state.failedRequests = [];
+      sessionStorage.removeItem(STORAGE_KEY);
+      persistSession();
+      updatePins();
+      const toolbarButton = $("[data-action=export]");
+      toolbarButton.disabled = false;
+      toolbarButton.textContent = "Send QA";
+      const confirmButton = $("[data-action=confirm-submit]");
+      confirmButton.hidden = false;
+      confirmButton.disabled = false;
+      button.hidden = true;
+      openPanel(null);
+      toggleSelection(true);
+      toast("Fresh QA pass started");
+    } catch (error) {
+      setFinishStatus(`${safeString(error)}. Reopen the project’s QA link and try again.`, "error");
+      button.disabled = false;
+      button.textContent = "Try another QA pass again";
     }
   }
 
@@ -893,6 +944,7 @@
     } catch (error) { hosted.config = { project:"Unverified project", organization:"QAWELL", environment:safeString(error), delivery:{ mode:"download", provider:null, destination:null }, error:safeString(error) }; }
     if (hosted.invitationToken) persistHostedSession();
     renderHostedIdentity();
+    updatePins();
     if (hosted.newInvitation && state.reviewer) renderInvitationSwitch();
   }
 
@@ -962,7 +1014,7 @@
     const destination = hostedDestination();
     const invited = Boolean(hosted.invitationToken);
     const delivery = invited && config?.delivery?.mode === "integration"
-      ? hosted.reviewId ? `When you finish, your notes will be sent to ${destination}.` : `This QA link will send your notes to ${destination}.`
+      ? hosted.reviewId ? `When you finish, your notes will be sent to ${destination}. Each QA pass holds up to ${INTEGRATION_NOTE_LIMIT} notes; submit it and start another if needed.` : `This QA link will send your notes to ${destination}. Each QA pass holds up to ${INTEGRATION_NOTE_LIMIT} notes.`
       : config?.delivery?.mode === "integration"
         ? `QA link authorization is needed to send notes to ${destination}. Reopen the project’s QA link to reconnect.`
         : "When you finish, your notes will download as a ZIP.";
@@ -1010,7 +1062,11 @@
       pin.style.top = `${note.target.rect.document.y - scrollY}px`;
       pins.appendChild(pin);
     }
-    $(".count").textContent = `${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"}`;
+    $(".count").textContent = hosted.config?.delivery?.mode === "integration" ? `${state.notes.length} / ${INTEGRATION_NOTE_LIMIT} notes` : `${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"}`;
+  }
+
+  function atIntegrationNoteLimit() {
+    return hosted.config?.delivery?.mode === "integration" && state.notes.length >= INTEGRATION_NOTE_LIMIT;
   }
 
   function renderNotesPanel(focusId = null) {
