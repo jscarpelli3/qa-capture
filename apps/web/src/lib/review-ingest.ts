@@ -63,9 +63,11 @@ export async function ingestReviewArchive(reviewId: string, input: Buffer) {
       }
     }
     if (reviewRecord.invitation_id) {
-      const { data: invitation } = await admin.from("invitations").select("accepted_reviews,max_reviews").eq("id", reviewRecord.invitation_id).single();
-      const accepted = (invitation?.accepted_reviews || 0) + 1;
-      await admin.from("invitations").update({ accepted_reviews: accepted, submitted_at: new Date().toISOString(), status: accepted >= (invitation?.max_reviews || 1) ? "exhausted" : "partially_used" }).eq("id", reviewRecord.invitation_id);
+      const { data: invitation } = await admin.from("invitations").select("accepted_reviews,max_reviews,link_type").eq("id", reviewRecord.invitation_id).single();
+      if (invitation?.link_type !== "shared") {
+        const accepted = (invitation?.accepted_reviews || 0) + 1;
+        await admin.from("invitations").update({ accepted_reviews: accepted, submitted_at: new Date().toISOString(), status: accepted >= (invitation?.max_reviews || 1) ? "exhausted" : "partially_used" }).eq("id", reviewRecord.invitation_id);
+      }
     }
     return { parsed, delivery, archive: scannedBuffer };
   } catch (error) {

@@ -107,6 +107,7 @@ Never add `NEXT_PUBLIC_` to a secret.
 
 ## Database migrations
 
+- `202611040002_reusable_review_links.sql` replaces per-person operational use with one reusable QA link per project. Shared links do not expire or exhaust, support concurrent/repeated passes, preserve reviewer attribution from the widget’s name field, and can be rotated or disabled by the project owner. Legacy individual invitation rows remain valid for compatibility but are no longer surfaced by the project UI.
 - `202611040001_shopify_preview_projects.sql` adds regular-vs-Shopify-preview project mode, the mutable current site URL used by stable QAWELL invitation links, and a pinned Shopify store ID. Shopify preview authorization permits only HTTPS hosts shaped like `[rotating token]-[that exact store ID].shopifypreview.com`; it does not wildcard other Shopify stores.
 
 Migration files, in order:
