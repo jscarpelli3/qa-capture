@@ -144,8 +144,20 @@ button { font:inherit; }
 .integrationChoice h2 { margin:100px 0 12px; font-size:clamp(42px,6vw,82px); line-height:.85; letter-spacing:-.07em; text-transform:uppercase; }
 .integrationChoice p { max-width:420px; color:var(--muted); font:17px/1.5 system-ui,sans-serif; }
 .integrationChoice strong { display:block; margin-top:45px; text-transform:uppercase; }
+.integrationChoice .inlineStrong { display:inline; margin:0; text-transform:none; }
 .integrationChoice.available:hover { background:var(--ink); color:var(--paper); }
 .integrationChoice.unavailable { opacity:.48; }
+.integrationLimits { margin:-30px 0 80px; padding:28px; border:1px solid var(--ink); background:var(--paper); }
+.integrationLimits h2 { margin:0 0 14px; font-size:clamp(28px,4vw,48px); line-height:.9; letter-spacing:-.05em; text-transform:uppercase; }
+.integrationLimits p,.connectionLimitCopy p,.savedConnection p { max-width:760px; font:15px/1.55 system-ui,sans-serif; color:var(--muted); }
+.connectionLimitCopy { position:relative; max-width:620px; margin-top:32px; padding:18px; border:1px solid var(--ink); background:var(--paper); }
+.connectionLimitCopy > strong,.savedConnection > span { font:12px ui-monospace,monospace; color:var(--accent); }
+.savedConnection { margin:12px 0 28px; padding:22px; border:1px solid var(--moss); }
+.savedConnection h2 { margin:14px 0 8px; font-size:clamp(24px,3vw,38px); line-height:1; text-transform:uppercase; }
+.savedConnection .button { display:inline-block; margin-top:16px; }
+.replaceCredential { margin-top:20px; border-top:1px solid var(--ink); padding-top:18px; }
+.replaceCredential summary { cursor:pointer; font-weight:900; text-transform:uppercase; }
+.replaceCredential form { margin-top:22px; }
 .connectionLayout { display:grid; grid-template-columns:1.15fr .85fr; min-height:calc(100vh - 100px); padding:45px 0 80px; }
 .connectionCopy { position:relative; padding:28px 50px 28px 0; overflow:hidden; }
 .connectionCopy h1 { position:relative; margin:100px 0 30px; font-size:clamp(55px,8vw,110px); line-height:.8; letter-spacing:-.08em; text-transform:uppercase; }

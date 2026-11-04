@@ -1,6 +1,6 @@
 # QAWELL current-state handoff
 
-Last updated: October 9, 2026  
+Last updated: November 4, 2026  
 Repository: `git@github.com:jscarpelli3/qa-capture.git`  
 Production: `https://qawell.dev`  
 Vercel root directory: `apps/web`
@@ -162,6 +162,9 @@ npm run build
 At the time of this handoff, lint, the Next.js production build, and all eight archive tests passed.
 
 ## Recent checkpoints
+
+- Connection-resume UX now treats the encrypted server-side credential as durable setup state. A developer who verifies an Agency Brain key can refresh, leave, or return and continue at project selection without re-entering the key. Integrations visibly distinguish available, setup saved, and connected states. The final activation write is checked before success is shown.
+- The integration UI now states the operating limits instead of hiding them: delivery is synchronous and sequential, Agency Brain permits 30 ticket creations per API key per minute, passes should remain under 30 notes, simultaneous large submissions should be avoided, and failed-note self-service retry/background queueing are not available yet. Approved packages and successful ticket mappings remain retained after partial failure.
 
 - `97105db` — AI-ready retained packages and visible note-to-ticket mapping
 - `1611426` — provider-neutral delivery adapter boundary; Asana/Sifter planning
