@@ -11,11 +11,13 @@ export async function POST(request: Request) {
   const record = await getWidgetProject(body.projectKey, body.origin).catch(() => null);
   if (!record || requestOrigin !== record.origin) return json({ error: "Project origin is not authorized." }, 403, requestOrigin);
   const admin = createSupabaseAdminClient();
-  const { data: invitation } = await admin.from("invitations").select("id,email,reviewer_name,status,expires_at,max_reviews,accepted_reviews,staging_url").eq("project_id", record.project.id).eq("secret_hash", hashToken(body.invitationToken)).maybeSingle();
-  if (!invitation || new Date(invitation.expires_at) <= new Date() || invitation.accepted_reviews >= invitation.max_reviews || ["revoked", "expired", "exhausted"].includes(invitation.status)) {
-    return json({ error: "This invitation is invalid or has expired." }, 403, record.origin);
+  const { data: invitation } = await admin.from("invitations").select("id,email,reviewer_name,status,expires_at,max_reviews,accepted_reviews,staging_url,link_type").eq("project_id", record.project.id).eq("secret_hash", hashToken(body.invitationToken)).maybeSingle();
+  const isShared = invitation?.link_type === "shared";
+  const unavailableIndividual = Boolean(invitation && !isShared && (!invitation.expires_at || invitation.max_reviews == null || new Date(invitation.expires_at).getTime() <= Date.now() || invitation.accepted_reviews >= invitation.max_reviews));
+  if (!invitation || unavailableIndividual || ["revoked", "expired", "exhausted"].includes(invitation.status)) {
+    return json({ error: "This review link is invalid or unavailable." }, 403, record.origin);
   }
-  if (invitation.status === "started") {
+  if (!isShared && invitation.status === "started") {
     const { data: activeReview } = await admin.from("reviews").select("id").eq("invitation_id", invitation.id).eq("status", "created").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (activeReview) {
       const nonce = createOpaqueToken();
@@ -26,12 +28,14 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: claimed } = await admin.from("invitations").update({ status: "started" })
-    .eq("id", invitation.id)
-    .eq("accepted_reviews", invitation.accepted_reviews)
-    .in("status", ["draft", "sent", "opened", "partially_used", "delivery_failed"])
-    .select("id").maybeSingle();
-  if (!claimed) return json({ error: "This invitation is already active in another review. Generate a new link if the previous session was abandoned." }, 409, record.origin);
+  if (!isShared) {
+    const { data: claimed } = await admin.from("invitations").update({ status: "started" })
+      .eq("id", invitation.id)
+      .eq("accepted_reviews", invitation.accepted_reviews)
+      .in("status", ["draft", "sent", "opened", "partially_used", "delivery_failed"])
+      .select("id").maybeSingle();
+    if (!claimed) return json({ error: "This invitation is already active in another review. Generate a new link if the previous session was abandoned." }, 409, record.origin);
+  }
 
   const nonce = createOpaqueToken();
   const uploadExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -46,7 +50,7 @@ export async function POST(request: Request) {
     delivery_mode: record.integration ? "integration" : "download",
   }).select("id").single();
   if (error || !review) {
-    await admin.from("invitations").update({ status: invitation.status }).eq("id", invitation.id).eq("status", "started");
+    if (!isShared) await admin.from("invitations").update({ status: invitation.status }).eq("id", invitation.id).eq("status", "started");
     return json({ error: "Could not start this review." }, 500, record.origin);
   }
   return json({ reviewId: review.id, uploadToken: nonce, uploadExpiresAt, maxArchiveBytes: 4 * 1024 * 1024, reviewerName: invitation.reviewer_name, config: widgetConfig(record) }, 201, record.origin);

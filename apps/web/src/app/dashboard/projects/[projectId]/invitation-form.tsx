@@ -32,25 +32,24 @@ export function InvitationForm({ projectId, stagingUrl }: { projectId: string; s
       const response = await fetch(`/api/projects/${projectId}/invitations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.get("name"), email: form.get("email"), stagingUrl: form.get("staging_url") }),
+        body: JSON.stringify({ stagingUrl: form.get("staging_url") }),
       });
       const result = await response.json();
-      if (!response.ok || !result.inviteLink) throw new Error(result.error || "The invitation could not be created.");
+      if (!response.ok || !result.inviteLink) throw new Error(result.error || "The reusable QA link could not be created.");
       setInviteLink(result.inviteLink);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "The invitation could not be created.");
+      setError(requestError instanceof Error ? requestError.message : "The reusable QA link could not be created.");
     } finally {
       setPending(false);
     }
   }
 
   return <form className="setupForm inviteForm" onSubmit={createInvite}>
-    <span className="stepNumber">NEW //</span><h2>Invite a reviewer</h2>
+    <span className="stepNumber">SHARED //</span><h2>Create the QA link</h2>
     {error ? <p className="formError">{error}</p> : null}
-    {inviteLink ? <div className="inviteResult"><strong>Invite link ready</strong><p>Copy this private QAWELL link and paste it into your own email. It follows the project’s current site URL.</p><div className="inviteLinkPrint" aria-label="Invitation link">{inviteLink}</div><div className="inviteLinkActions"><button type="button" onClick={copyInviteLink}>{copied ? "Copied!" : "Copy link"}</button><button type="button" disabled title="Email integration not set up">Send invite — email integration not set up</button></div><input ref={linkInput} className="visuallyHidden" aria-hidden="true" tabIndex={-1} readOnly value={inviteLink} /><span className="copyStatus" aria-live="polite">{copied ? "Invitation link copied to clipboard." : ""}</span></div> : null}
-    <label>Name<input name="name" maxLength={200} placeholder="Bob Sacamano" /></label>
-    <label>Email<input name="email" type="email" required maxLength={200} placeholder="bob@example.com" /></label>
-    <label>Page to review<input name="staging_url" type="url" required defaultValue={stagingUrl} /></label>
-    <button className="button inviteSubmit" type="submit" disabled={pending} aria-busy={pending}>{pending ? <><span className="buttonSpinner" aria-hidden="true" />Creating link…</> : "Create invite link →"}</button>
+    <p>Anyone with this link can run a QA pass. Each reviewer enters their own name, and completed notes go to this project’s connected destination.</p>
+    {inviteLink ? <div className="inviteResult"><strong>Reusable QA link ready</strong><p>Copy this link now. It follows the project’s current site URL and can be used for future QA passes.</p><div className="inviteLinkPrint" aria-label="Reusable QA link">{inviteLink}</div><div className="inviteLinkActions"><button type="button" onClick={copyInviteLink}>{copied ? "Copied!" : "Copy link"}</button></div><input ref={linkInput} className="visuallyHidden" aria-hidden="true" tabIndex={-1} readOnly value={inviteLink} /><span className="copyStatus" aria-live="polite">{copied ? "QA link copied to clipboard." : ""}</span></div> : null}
+    <label>Review starts on<input name="staging_url" type="url" required defaultValue={stagingUrl} /></label>
+    <button className="button inviteSubmit" type="submit" disabled={pending} aria-busy={pending}>{pending ? <><span className="buttonSpinner" aria-hidden="true" />Creating link…</> : "Create reusable QA link →"}</button>
   </form>;
 }

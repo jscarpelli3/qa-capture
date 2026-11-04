@@ -8,10 +8,11 @@ export async function GET(_request: Request, { params }: RouteContext<"/invite/[
 
   const admin = createSupabaseAdminClient();
   const { data: invitation } = await admin.from("invitations")
-    .select("project_id,status,expires_at,max_reviews,accepted_reviews,staging_url")
+    .select("project_id,status,expires_at,max_reviews,accepted_reviews,staging_url,link_type")
     .eq("secret_hash", hashToken(token))
     .maybeSingle();
-  if (!invitation || new Date(invitation.expires_at) <= new Date() || invitation.accepted_reviews >= invitation.max_reviews || ["revoked", "expired", "exhausted"].includes(invitation.status)) return unavailable();
+  const unavailableIndividual = Boolean(invitation && invitation.link_type !== "shared" && (!invitation.expires_at || invitation.max_reviews == null || new Date(invitation.expires_at).getTime() <= Date.now() || invitation.accepted_reviews >= invitation.max_reviews));
+  if (!invitation || unavailableIndividual || ["revoked", "expired", "exhausted"].includes(invitation.status)) return unavailable();
 
   const [{ data: project }, { data: origins }] = await Promise.all([
     admin.from("projects").select("site_mode,current_site_url,shopify_store_id").eq("id", invitation.project_id).maybeSingle(),
@@ -30,7 +31,7 @@ export async function GET(_request: Request, { params }: RouteContext<"/invite/[
 }
 
 function unavailable() {
-  return new Response("This QAWELL invitation is unavailable or has expired. Ask the project owner for a new invitation.", {
+  return new Response("This QAWELL review link is unavailable. Ask the project owner for a new link.", {
     status: 410,
     headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store, private" },
   });

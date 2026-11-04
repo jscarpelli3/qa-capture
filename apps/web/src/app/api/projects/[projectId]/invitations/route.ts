@@ -5,8 +5,6 @@ import { getServerEnv } from "@/lib/env";
 import { projectAllowsOrigin, type ProjectSiteMode } from "@/lib/project-site";
 
 const invitationSchema = z.object({
-  email: z.email().max(200),
-  name: z.string().trim().max(200).optional(),
   stagingUrl: z.url(),
 });
 
@@ -21,7 +19,10 @@ export async function POST(request: Request, { params }: RouteContext<"/api/proj
   if (!project) return Response.json({ error: "Project not found." }, { status: 404 });
 
   const parsed = invitationSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "Check the reviewer email and staging URL." }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: "Check the review page URL." }, { status: 400 });
+
+  const { data: existingLink } = await supabase.from("invitations").select("id").eq("project_id", project.id).eq("link_type", "shared").maybeSingle();
+  if (existingLink) return Response.json({ error: "This project already has a reusable QA link. Rotate that link if you need a new one." }, { status: 409 });
 
   const { data: origins } = await supabase.from("project_origins").select("origin").eq("project_id", project.id);
   const inviteUrl = new URL(parsed.data.stagingUrl);
@@ -33,16 +34,17 @@ export async function POST(request: Request, { params }: RouteContext<"/api/proj
   const secret = createOpaqueToken();
   const { error } = await supabase.from("invitations").insert({
     project_id: project.id,
-    email: parsed.data.email.toLowerCase(),
-    reviewer_name: parsed.data.name || null,
+    email: null,
+    reviewer_name: null,
     secret_hash: hashToken(secret),
     staging_url: inviteUrl.toString(),
     status: "draft",
-    expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-    max_reviews: 1,
+    expires_at: null,
+    max_reviews: null,
+    link_type: "shared",
     created_by: userId,
   });
-  if (error) return Response.json({ error: "The invitation could not be created." }, { status: 500 });
+  if (error) return Response.json({ error: "The reusable QA link could not be created." }, { status: 500 });
 
   return Response.json({ inviteLink: new URL(`/invite/${secret}`, getServerEnv().NEXT_PUBLIC_APP_URL).toString() }, { status: 201 });
 }

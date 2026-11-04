@@ -3,50 +3,50 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type InvitationRowProps = {
+type ReviewLinkRowProps = {
   projectId: string;
   submissions: number;
-  invitation: { id: string; email: string; reviewer_name: string | null; status: string; staging_url: string; accepted_reviews: number };
+  invitation: { id: string; status: string; staging_url: string };
 };
 
-export function InvitationRow({ projectId, invitation, submissions }: InvitationRowProps) {
+export function InvitationRow({ projectId, invitation, submissions }: ReviewLinkRowProps) {
   const router = useRouter();
-  const [deleteReviews, setDeleteReviews] = useState(false);
-  const [pendingAction, setPendingAction] = useState<"link" | "delete" | null>(null);
+  const [pendingAction, setPendingAction] = useState<"link" | "disable" | null>(null);
   const [error, setError] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [copied, setCopied] = useState(false);
-  const status = ["draft", "sent"].includes(invitation.status) ? "link ready" : invitation.status.replaceAll("_", " ");
+  const disabled = invitation.status === "revoked";
 
-  async function removeInvitation() {
-    const detail = deleteReviews
-      ? "Delete this invitation and all of its QAWELL QA records? Tickets already sent to integrations will not be deleted."
-      : "Delete this invitation? Its existing QAWELL QA records will be preserved.";
-    if (!window.confirm(detail)) return;
-    setPendingAction("delete");
+  async function disableLink() {
+    if (!window.confirm("Disable this QA link? It will stop opening new reviews. Completed QA records will be preserved.")) return;
+    setPendingAction("disable");
     setError("");
     try {
-      const response = await fetch(`/api/projects/${projectId}/invitations/${invitation.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deleteReviews }) });
+      const response = await fetch(`/api/projects/${projectId}/invitations/${invitation.id}`, { method: "DELETE" });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Could not delete the invitation.");
+      if (!response.ok) throw new Error(result.error || "Could not disable the QA link.");
+      setInviteLink("");
       router.refresh();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not delete the invitation.");
+      setError(requestError instanceof Error ? requestError.message : "Could not disable the QA link.");
+    } finally {
       setPendingAction(null);
     }
   }
 
-  async function generateLink() {
-    if (!window.confirm("Generate a new link for this reviewer? Their previous invitation link will stop working.")) return;
+  async function rotateLink() {
+    const action = disabled ? "Create a new active link?" : "Rotate this QA link? The previous link will stop working immediately.";
+    if (!window.confirm(action)) return;
     setPendingAction("link");
     setError("");
     try {
       const response = await fetch(`/api/projects/${projectId}/invitations/${invitation.id}`, { method: "PATCH" });
       const result = await response.json();
-      if (!response.ok || !result.inviteLink) throw new Error(result.error || "Could not generate a new invitation link.");
+      if (!response.ok || !result.inviteLink) throw new Error(result.error || "Could not generate the QA link.");
       setInviteLink(result.inviteLink);
+      router.refresh();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not generate a new invitation link.");
+      setError(requestError instanceof Error ? requestError.message : "Could not generate the QA link.");
     } finally {
       setPendingAction(null);
     }
@@ -59,15 +59,14 @@ export function InvitationRow({ projectId, invitation, submissions }: Invitation
   }
 
   return <div className="inviteRow">
-    <span className={`inviteStatus status-${invitation.status}`}>{status}</span>
-    <strong>{invitation.reviewer_name || invitation.email}</strong>
-    <small>{invitation.reviewer_name ? invitation.email : invitation.staging_url}</small>
-    <b>{submissions} submitted</b>
-    {inviteLink ? <div className="reviewerLink"><code>{inviteLink}</code><button type="button" onClick={copyLink}>{copied ? "Copied!" : "Copy link"}</button><small>Copy it now. For security, QAWELL cannot display this secret again after the page refreshes.</small></div> : null}
+    <span className={`inviteStatus status-${invitation.status}`}>{disabled ? "disabled" : "active"}</span>
+    <strong>Reusable project QA link</strong>
+    <small>Starts on {invitation.staging_url}</small>
+    <b>{submissions} completed QA {submissions === 1 ? "pass" : "passes"}</b>
+    {inviteLink ? <div className="reviewerLink"><code>{inviteLink}</code><button type="button" onClick={copyLink}>{copied ? "Copied!" : "Copy link"}</button><small>Copy it now. QAWELL stores only its secure fingerprint and cannot display the secret again after refresh.</small></div> : null}
     <div className="inviteDelete">
-      <button type="button" onClick={generateLink} disabled={pendingAction !== null} aria-busy={pendingAction === "link"}>{pendingAction === "link" ? "Generating link…" : "Generate new link"}</button>
-      <label><input type="checkbox" checked={deleteReviews} onChange={(event) => setDeleteReviews(event.target.checked)} /> Also delete QA records</label>
-      <button type="button" onClick={removeInvitation} disabled={pendingAction !== null} aria-busy={pendingAction === "delete"}>{pendingAction === "delete" ? "Deleting…" : "Delete invite"}</button>
+      <button type="button" onClick={rotateLink} disabled={pendingAction !== null} aria-busy={pendingAction === "link"}>{pendingAction === "link" ? "Generating link…" : disabled ? "Create new active link" : "Rotate link"}</button>
+      {!disabled ? <button type="button" onClick={disableLink} disabled={pendingAction !== null} aria-busy={pendingAction === "disable"}>{pendingAction === "disable" ? "Disabling…" : "Disable link"}</button> : null}
       {error ? <span role="alert">{error}</span> : null}
     </div>
   </div>;
