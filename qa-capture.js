@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.7";
+  const VERSION = "0.4.8";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -852,7 +852,10 @@
         toast("Review recorded — ZIP downloaded");
       } else {
         const result = await response.json();
-        setFinishStatus(`${result.tickets || result.notes || state.notes.length} QA ${state.notes.length === 1 ? "ticket was" : "tickets were"} sent successfully.`, "success");
+        const ticketCount = result.tickets || result.notes || state.notes.length;
+        const attachmentSummary = result.attachmentsDelivered ? ` ${result.attachmentsDelivered} ${result.attachmentsDelivered === 1 ? "screenshot was" : "screenshots were"} attached.` : "";
+        const attachmentWarning = result.attachmentsFailed ? ` ${result.attachmentsFailed} ${result.attachmentsFailed === 1 ? "screenshot could" : "screenshots could"} not be attached; the text ${result.attachmentsFailed === 1 ? "ticket is" : "tickets are"} still available.` : "";
+        setFinishStatus(`${ticketCount} QA ${ticketCount === 1 ? "ticket was" : "tickets were"} sent successfully.${attachmentSummary}${attachmentWarning}`, result.attachmentsFailed ? "error" : "success");
       }
       hosted.uploadToken = null;
       hosted.uploadExpiresAt = null;

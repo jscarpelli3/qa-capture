@@ -1,9 +1,9 @@
 import "server-only";
 import { decryptCredential } from "@/lib/integration-credentials";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { QawellReview, ReviewNote } from "@qa-capture/aggregate";
+import type { QawellReview, ReviewAsset, ReviewNote } from "@qa-capture/aggregate";
 
-export async function deliverReviewToAgencyBrain(reviewId: string, review: QawellReview) {
+export async function deliverReviewToAgencyBrain(reviewId: string, review: QawellReview, assetsById: Map<string, ReviewAsset>) {
   const admin = createSupabaseAdminClient();
   const { data: storedReview } = await admin.from("reviews").select("project_id,reviewer_name,reviewer_email").eq("id", reviewId).single();
   if (!storedReview) throw new Error("Review record not found");
@@ -14,40 +14,91 @@ export async function deliverReviewToAgencyBrain(reviewId: string, review: Qawel
   const apiKey = decryptCredential(credential.encrypted_secret);
   const externalTickets = await fetchExistingTickets(apiKey, integration.external_project_id);
   let delivered = 0;
+  let attachmentsDelivered = 0;
+  let attachmentsFailed = 0;
 
   for (const note of review.notes) {
-    const { data: existing } = await admin.from("review_deliveries").select("id,status").eq("review_id", reviewId).eq("integration_id", integration.id).eq("note_id", note.id).maybeSingle();
-    if (existing?.status === "delivered") { delivered += 1; continue; }
-    const deliveryId = existing?.id || crypto.randomUUID();
-    await admin.from("review_deliveries").upsert({ id: deliveryId, review_id: reviewId, integration_id: integration.id, note_id: note.id, status: "delivering", attempted_at: new Date().toISOString(), error_code: null });
-    const reconciled = findExistingTicket(externalTickets, review.header?.id, note.id);
-    if (reconciled) {
-      await admin.from("review_deliveries").update({ status: "delivered", external_id: reconciled.id, external_label: reconciled.ticket_number ? `QA #${reconciled.ticket_number}` : reconciled.id, delivered_at: new Date().toISOString() }).eq("id", deliveryId);
+    const noteAssets = (note.assets || []).map((id) => assetsById.get(id)).filter((asset): asset is ReviewAsset => Boolean(asset));
+    const uploadableAssets = noteAssets.slice(0, 5);
+    const overflowCount = Math.max(0, noteAssets.length - uploadableAssets.length);
+    const { data: existing } = await admin.from("review_deliveries").select("id,status,external_id,attachment_count,attachments_delivered,attachments_failed").eq("review_id", reviewId).eq("integration_id", integration.id).eq("note_id", note.id).maybeSingle();
+    if (existing?.status === "delivered" && existing.external_id && existing.attachment_count === noteAssets.length) {
       delivered += 1;
+      attachmentsDelivered += existing.attachments_delivered || 0;
+      attachmentsFailed += existing.attachments_failed || 0;
       continue;
     }
-    const response = await fetch("https://theagencybrain.com/api/external/qa/tickets", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        project_id: integration.external_project_id,
-        title: ticketTitle(note),
-        description: ticketDescription(note, review.header?.id),
-        severity: note.kind === "bug" ? "high" : "medium",
-        submitter_name: storedReview.reviewer_name || review.header?.reviewer?.name || undefined,
-        submitter_email: storedReview.reviewer_email || undefined,
-      }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!response.ok) {
-      await admin.from("review_deliveries").update({ status: "failed", error_code: `agency_brain_${response.status}` }).eq("id", deliveryId);
-      throw new Error(`Agency Brain rejected note ${note.id} with ${response.status}`);
+    const deliveryId = existing?.id || crypto.randomUUID();
+    await admin.from("review_deliveries").upsert({ id: deliveryId, review_id: reviewId, integration_id: integration.id, note_id: note.id, status: "delivering", attempted_at: new Date().toISOString(), error_code: null, attachment_count: noteAssets.length, attachments_delivered: 0, attachments_failed: 0 });
+    const reconciled = findExistingTicket(externalTickets, review.header?.id, note.id);
+    let ticketId: string;
+    let ticketLabel: string;
+    if (reconciled) {
+      ticketId = reconciled.id;
+      ticketLabel = reconciled.ticket_number ? `QA #${reconciled.ticket_number}` : reconciled.id;
+    } else {
+      const response = await fetch("https://theagencybrain.com/api/external/qa/tickets", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          project_id: integration.external_project_id,
+          title: ticketTitle(note),
+          description: ticketDescription(note, review.header?.id),
+          severity: note.kind === "bug" ? "high" : "medium",
+          submitter_name: storedReview.reviewer_name || review.header?.reviewer?.name || undefined,
+          submitter_email: storedReview.reviewer_email || undefined,
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) {
+        await admin.from("review_deliveries").update({ status: "failed", error_code: `agency_brain_${response.status}` }).eq("id", deliveryId);
+        throw new Error(`Agency Brain rejected note ${note.id} with ${response.status}`);
+      }
+      const ticket = await response.json();
+      ticketId = ticket.id;
+      ticketLabel = ticket.ticket_number ? `QA #${ticket.ticket_number}` : ticket.id;
     }
-    const ticket = await response.json();
-    await admin.from("review_deliveries").update({ status: "delivered", external_id: ticket.id, external_label: ticket.ticket_number ? `QA #${ticket.ticket_number}` : ticket.id, delivered_at: new Date().toISOString() }).eq("id", deliveryId);
+
+    const attachmentResult = await uploadAttachments(apiKey, ticketId, uploadableAssets);
+    const failedCount = attachmentResult.failed + overflowCount;
+    await admin.from("review_deliveries").update({ status: "delivered", external_id: ticketId, external_label: ticketLabel, delivered_at: new Date().toISOString(), attachments_delivered: attachmentResult.delivered, attachments_failed: failedCount, error_code: failedCount ? attachmentResult.firstError || "agency_brain_attachment_limit" : null }).eq("id", deliveryId);
     delivered += 1;
+    attachmentsDelivered += attachmentResult.delivered;
+    attachmentsFailed += failedCount;
   }
-  return { delivered, mode: "integration" as const };
+  return { delivered, attachmentsDelivered, attachmentsFailed, mode: "integration" as const };
+}
+
+async function uploadAttachments(apiKey: string, ticketId: string, assets: ReviewAsset[]) {
+  let delivered = 0;
+  let failed = 0;
+  let firstError: string | null = null;
+  for (const asset of assets) {
+    try {
+      const form = new FormData();
+      const fileName = asset.path.split("/").pop() || `${asset.id}.${extensionForMime(asset.mime)}`;
+      form.append("file", new Blob([new Uint8Array(asset.data)], { type: asset.mime }), fileName);
+      const response = await fetch(`https://theagencybrain.com/api/external/qa/tickets/${encodeURIComponent(ticketId)}/attachments`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        body: form,
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (response.status === 201) delivered += 1;
+      else {
+        failed += 1;
+        firstError ||= `agency_brain_attachment_${response.status}`;
+      }
+    } catch {
+      failed += 1;
+      firstError ||= "agency_brain_attachment_network";
+    }
+  }
+  return { delivered, failed, firstError };
+}
+
+function extensionForMime(mime: ReviewAsset["mime"]) {
+  return mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : "webp";
 }
 
 type ExternalTicket = { id: string; ticket_number?: number; description?: string | null };

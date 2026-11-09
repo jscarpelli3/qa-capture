@@ -51,11 +51,16 @@ export async function ingestReviewArchive(reviewId: string, input: Buffer) {
     await del(storedPath).catch(() => undefined);
     storedPath = null;
 
-    let delivery = { delivered: 0, mode: "download" as "download" | "integration" };
+    let delivery: {
+      delivered: number;
+      mode: "download" | "integration";
+      attachmentsDelivered?: number;
+      attachmentsFailed?: number;
+    } = { delivered: 0, mode: "download" };
     if (reviewRecord.delivery_mode === "integration") {
       await admin.from("reviews").update({ status: "delivering" }).eq("id", reviewId);
       try {
-        delivery = await deliverReview(reviewId, parsed.review);
+        delivery = await deliverReview(reviewId, parsed.review, parsed.assetsById);
         await admin.from("reviews").update({ status: "delivered" }).eq("id", reviewId);
       } catch (error) {
         await admin.from("reviews").update({ status: "delivery_failed", rejection_code: error instanceof Error ? error.message.slice(0, 200) : "delivery_failed" }).eq("id", reviewId);

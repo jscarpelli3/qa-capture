@@ -107,10 +107,11 @@ Never add `NEXT_PUBLIC_` to a secret.
 
 ## Database migrations
 
+- `202611090001_agency_brain_attachment_delivery.sql` records screenshot attempts, successes, and non-blocking failures on each external note delivery. Agency Brain screenshots are uploaded only after the text ticket exists, using the external attachment endpoint and the same encrypted API key.
 - `202611040002_reusable_review_links.sql` replaces per-person operational use with one reusable QA link per project. Shared links do not expire or exhaust, support concurrent/repeated passes, preserve reviewer attribution from the widget’s name field, and can be rotated or disabled by the project owner. Legacy individual invitation rows remain valid for compatibility but are no longer surfaced by the project UI.
 - `202611040001_shopify_preview_projects.sql` adds regular-vs-Shopify-preview project mode, the mutable current site URL used by stable QAWELL invitation links, and a pinned Shopify store ID. Shopify preview authorization permits only HTTPS hosts shaped like `[rotating token]-[that exact store ID].shopifypreview.com`; it does not wildcard other Shopify stores.
 
-Migration files, in order:
+Foundational migration files, in order:
 
 1. `202609280001_initial_platform.sql`
 2. `202610010001_project_setup.sql`
@@ -118,13 +119,13 @@ Migration files, in order:
 4. `202610020001_manual_invitation_status.sql`
 5. `202610020002_add_asana_provider.sql`
 
-All five were reported as applied to the production Supabase project.
+Those five were reported as applied to the production Supabase project. Apply the newer dated migrations listed above them as part of each corresponding release.
 
 ## Known limitations and operational rules
 
 - Invitation email is manual. The UI prints a copyable invitation link and does not falsely claim an email was sent.
 - Integration delivery is synchronous and sequential inside the upload request.
-- Agency Brain allows 30 ticket creations per minute per API key. Keep internal passes reasonably small and avoid simultaneous large submissions until queue-backed delivery exists.
+- Agency Brain allows 120 requests per minute per API key. Each ticket creation and each screenshot upload is a separate request. The current 25-note pass limit keeps an ordinary pass with one screenshot per note below that ceiling, but avoid simultaneous large submissions until queue-backed delivery exists.
 - A partially delivered pass can become `delivery_failed`; successfully created note deliveries remain recorded and are reconciled before another creation attempt.
 - The production multi-reviewer/concurrency matrix remains untested manually.
 - There is no payment system, public onboarding polish, account deletion workflow, or formal operational monitoring yet.

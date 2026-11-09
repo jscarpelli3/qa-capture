@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: RouteContext<"/api/v1/r
     const buffer = Buffer.from(await request.arrayBuffer());
     const result = await ingestReviewArchive(reviewId, buffer);
     if (result.delivery.mode === "download") return new Response(result.archive, { status: 200, headers: { ...cors(origin), "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="qawell-review-${reviewId}.zip"`, "X-QAWELL-Notes": String(result.parsed.review.notes.length) } });
-    return json({ status: "delivered", notes: result.parsed.review.notes.length, tickets: result.delivery.delivered }, 200, origin);
+    return json({ status: "delivered", notes: result.parsed.review.notes.length, tickets: result.delivery.delivered, attachmentsDelivered: result.delivery.attachmentsDelivered || 0, attachmentsFailed: result.delivery.attachmentsFailed || 0 }, 200, origin);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Review processing failed.";
     return json({ error: message }, 422, origin);

@@ -13,6 +13,12 @@ declare module "@qa-capture/aggregate" {
     notes: ReviewNote[];
     assets: Array<Record<string, unknown>>;
   }
+  export interface ReviewAsset {
+    id: string;
+    path: string;
+    mime: "image/png" | "image/jpeg" | "image/webp";
+    data: Buffer;
+  }
   export class ArchiveError extends Error { code: string }
   export function readZip(input: Buffer | Uint8Array): Map<string, Buffer>;
   export function createZip(entries: Array<{ name: string; data: Buffer | Uint8Array | string }>): Buffer;
@@ -25,6 +31,7 @@ declare module "@qa-capture/aggregate" {
       notes: QawellReview["notes"];
       assets: QawellReview["assets"];
     };
+    assetsById: Map<string, ReviewAsset>;
     deliveryMap: Record<string, unknown> | null;
   };
 }
