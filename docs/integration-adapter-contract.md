@@ -18,10 +18,13 @@ interface ReviewDeliveryAdapter {
   deliver(input: {
     reviewId: string;
     review: QawellReview;
+    assetsById: Map<string, ReviewAsset>;
   }): Promise<{
     mode: "integration";
     provider: "agency_brain" | "sifter" | "asana";
     delivered: number;
+    attachmentsDelivered?: number;
+    attachmentsFailed?: number;
   }>;
 }
 ```
@@ -85,6 +88,7 @@ Adapters should share the same source semantics:
 - Record: QA ticket.
 - Idempotency: search for the embedded QAWELL review/note reference, in addition to checking `review_deliveries`.
 - Status: live.
+- Attachment flow: create the QA ticket first, then upload each validated screenshot to `POST /api/external/qa/tickets/{ticketId}/attachments` as multipart field `file`. Do not set the multipart `Content-Type` header manually. Agency Brain accepts at most five PNG, JPEG, GIF, or WebP images of 4 MB each. QAWELL currently produces PNG, JPEG, or WebP assets. Attachment failures are recorded separately and never roll back the text ticket.
 
 ### Sifter
 
