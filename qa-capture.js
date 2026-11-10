@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.8";
+  const VERSION = "0.4.9";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -78,6 +78,15 @@
       .toolbar .count:hover { background:#d8d5ca;color:#282b27; }
       .well-mark { width:38px;padding:3px!important;background:#d8d5ca!important; }
       .well-mark img { display:block;width:31px;height:31px;object-fit:contain; }
+      .mobile-well.open { display:none!important; }
+      .mobile-well-header { display:flex;align-items:center;gap:10px;margin-bottom:12px; }
+      .mobile-well-header img { width:34px;height:34px;object-fit:contain; }
+      .mobile-well-header strong,.mobile-well-header span { display:block; }
+      .mobile-well-header strong { font-size:13px;letter-spacing:.06em; }
+      .mobile-well-header span { margin-top:1px;color:#666b45;font-size:11px; }
+      .mobile-well-actions { display:grid;border-top:1px solid #777b70; }
+      .mobile-well-actions button { display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:42px;border:0;border-bottom:1px solid #777b70;padding:9px 2px;background:transparent;color:#282b27;font-weight:800;text-align:left;text-transform:uppercase; }
+      .mobile-well-actions button::after { content:"→";color:#777b70; }
       .move-widget { width:43px;padding:8px!important; }
       .move-widget-icon { display:block;width:24px;height:24px;font-size:22px;line-height:22px;text-align:center; }
       .outline { display:none;position:fixed;border:2px solid #a84f2f;background:#a84f2f1a;pointer-events:none; }
@@ -137,6 +146,25 @@
       .pin span { position:absolute;left:50%;top:8px;display:grid;min-width:17px;height:17px;place-items:center;transform:translateX(-50%);border:1px solid #282b27;border-radius:50%;background:#e7e4da;color:#282b27;font:bold 10px/15px ui-monospace;text-align:center; }
       .toast { display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:9px 13px;border:1px solid #282b27;border-radius:0;background:#e7e4da;color:#282b27;box-shadow:4px 4px 0 #666b45; }
       .toast.show { display:block; }
+      @media (max-width:640px), (hover:none) and (pointer:coarse) {
+        .toolbar { box-shadow:4px 4px 0 #666b45; }
+        .toolbar .count,.toolbar [data-action="export"],.toolbar .move-widget { display:none; }
+        .toolbar [data-action="select"] { width:44px;min-height:44px;padding:4px;font-size:0; }
+        .toolbar [data-action="select"]::before { content:"+";font:800 23px/1 ui-sans-serif,system-ui,sans-serif; }
+        .toolbar [data-action="select"].active::before { content:"×"; }
+        .well-mark { width:44px;min-height:44px!important; }
+        .well-mark img { width:30px;height:30px; }
+        .mobile-well.open { display:block!important;width:min(270px,calc(100vw - 28px))!important;padding:15px; }
+        .panel { width:calc(100vw - 28px);max-height:calc(100dvh - 86px);padding:16px; }
+        .qa[data-placement="bottom-right"] .toolbar { right:14px;bottom:14px; }
+        .qa[data-placement="bottom-right"] .panel { right:14px;bottom:66px; }
+        .qa[data-placement="bottom-left"] .toolbar { left:14px;bottom:14px; }
+        .qa[data-placement="bottom-left"] .panel { left:14px;bottom:66px; }
+        .qa[data-placement="top-left"] .toolbar { left:14px;top:14px; }
+        .qa[data-placement="top-left"] .panel { left:14px;top:66px; }
+        .qa[data-placement="top-right"] .toolbar { right:14px;top:14px; }
+        .qa[data-placement="top-right"] .panel { right:14px;top:66px; }
+      }
     </style>
     <div class="qa" data-placement="${state.widgetPlacement}">
       <div class="pins"></div>
@@ -192,23 +220,38 @@
         <div class="actions"><button data-action="keep-current">Keep current</button><button data-action="download-and-switch">Download current &amp; start</button><button class="primary" data-action="start-invite">Start invited review</button></div>
       </section>
       <div class="toolbar" hidden>
-        <button class="well-mark" data-action="info" aria-label="About this QAWELL review"><img src="https://qawell.dev/icon.png" alt=""></button>
+        <button class="well-mark" data-action="well" aria-label="Open QAWELL review controls"><img src="https://qawell.dev/icon.png" alt=""></button>
         <button data-action="select" class="primary">＋ Add note</button>
         <button data-action="list" class="count" title="View saved notes">0 notes</button>
         <button data-action="export">Export ZIP</button>
         <button class="move-widget" data-action="move-widget" title="Move widget" aria-label="Move widget"><span class="move-widget-icon" aria-hidden="true"></span></button>
       </div>
+      <section class="panel mobile-well" aria-label="QAWELL review controls">
+        <div class="mobile-well-header"><img src="https://qawell.dev/icon.png" alt=""><div><strong>QAWELL</strong><span data-mobile-count>No notes yet</span></div></div>
+        <div class="mobile-well-actions">
+          <button data-action="list">Saved notes</button>
+          <button data-action="export">Finish and send</button>
+          <button data-action="info">About this review</button>
+          <button data-action="move-widget">Move the well</button>
+        </div>
+      </section>
       <div class="toast" role="status"></div>
     </div>`;
 
   const $ = (selector) => root.querySelector(selector);
   const toolbar = $(".toolbar");
+  const toolbarExport = $(".toolbar [data-action=export]");
+  const mobileExport = $(".mobile-well [data-action=export]");
   const outline = $(".outline");
   const notePanel = $(".panel.note");
   let pendingTarget = null;
   let pendingClick = null;
   let pendingScreenshot = null;
   let editingNoteId = null;
+  const mobileExportObserver = new MutationObserver(syncMobileExport);
+  mobileExportObserver.observe(toolbarExport, { attributes:true, attributeFilter:["disabled"], childList:true, characterData:true, subtree:true });
+  cleanup.push(() => mobileExportObserver.disconnect());
+  syncMobileExport();
   updateWidgetPlacement();
 
   on(root, "click", async (event) => {
@@ -233,6 +276,7 @@
     if (action === "view-note") renderNotesPanel(event.target.closest("[data-note-id]")?.dataset.noteId);
     if (action === "edit-note") editNote(event.target.closest("[data-note-id]")?.dataset.noteId);
     if (action === "close-notes") openPanel(null);
+    if (action === "well") openWell();
     if (action === "info") openPanel("info");
     if (action === "close-info") openPanel(null);
     if (action === "destroy") destroy();
@@ -412,6 +456,7 @@
     state.selecting = nextSelecting;
     $("[data-action=select]").classList.toggle("active", state.selecting);
     $("[data-action=select]").textContent = state.selecting ? "Cancel selection" : "＋ Add note";
+    $("[data-action=select]").setAttribute("aria-label", state.selecting ? "Cancel note selection" : "Add a QA note");
     if (!state.selecting) {
       state.hovered = null;
       outline.style.display = "none";
@@ -1066,6 +1111,7 @@
       pins.appendChild(pin);
     }
     $(".count").textContent = hosted.config?.delivery?.mode === "integration" ? `${state.notes.length} / ${INTEGRATION_NOTE_LIMIT} notes` : `${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"}`;
+    $("[data-mobile-count]").textContent = state.notes.length ? `${state.notes.length} saved ${state.notes.length === 1 ? "note" : "notes"}` : "No notes yet";
   }
 
   function atIntegrationNoteLimit() {
@@ -1204,6 +1250,25 @@
   function openPanel(name) {
     for (const panel of root.querySelectorAll(".panel")) panel.classList.remove("open");
     if (name) $(`.panel.${name}`)?.classList.add("open");
+    $("[data-action=well]").setAttribute("aria-expanded", name === "mobile-well" ? "true" : "false");
+  }
+
+  function openWell() {
+    if (!window.matchMedia("(max-width: 640px), (hover: none) and (pointer: coarse)").matches) {
+      openPanel("info");
+      return;
+    }
+    openPanel($(".panel.mobile-well").classList.contains("open") ? null : "mobile-well");
+  }
+
+  function syncMobileExport() {
+    const labels = {
+      "Export ZIP":"Finish and download",
+      "Download ZIP":"Finish and download",
+      "Send QA":"Finish and send",
+    };
+    mobileExport.textContent = labels[toolbarExport.textContent] || toolbarExport.textContent;
+    mobileExport.disabled = toolbarExport.disabled;
   }
 
   function moveWidget() {
