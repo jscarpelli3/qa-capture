@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.9";
+  const VERSION = "0.4.10";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -9,6 +9,7 @@
   const projectKey = sourceScript?.dataset?.project || sourceScript?.dataset?.qaProject || "local";
   const STORAGE_KEY = `__qaCaptureSession_v1:${projectKey}`;
   const IDENTITY_KEY = `__qaCaptureIdentity_v1:${projectKey}`;
+  const COMPACT_KEY = `__qaCaptureCompact_v1:${projectKey}`;
   const HOSTED_KEY = `__qawellHostedSession_v1:${projectKey}`;
   const HOSTED_RECOVERY_KEY = `__qawellHostedActive_v1:${projectKey}`;
   const LEGACY_STORAGE_KEY = "__qaCaptureSession_v1";
@@ -50,6 +51,7 @@
     hovered: null,
     assets: [],
     widgetPlacement: WIDGET_PLACEMENTS[0],
+    widgetCompact: false,
   };
   restoreSession();
   if (hosted.invitationToken && !canSubmitHostedReview() && state.reviewer) hosted.newInvitation = true;
@@ -76,9 +78,9 @@
       .toolbar button.active { background:#a84f2f;color:#e7e4da; }
       .toolbar .count { background:transparent;color:#282b27;padding:8px 10px;white-space:nowrap;text-transform:none;letter-spacing:0;font-weight:600; }
       .toolbar .count:hover { background:#d8d5ca;color:#282b27; }
-      .well-mark { width:38px;padding:3px!important;background:#d8d5ca!important; }
+      .well-mark { display:grid;place-items:center;width:38px;padding:0!important;background:#d8d5ca!important; }
       .well-mark img { display:block;width:31px;height:31px;object-fit:contain; }
-      .mobile-well.open { display:none!important; }
+      .mobile-well.open { display:block!important;width:min(270px,calc(100vw - 36px))!important;padding:15px; }
       .mobile-well-header { display:flex;align-items:center;gap:10px;margin-bottom:12px; }
       .mobile-well-header img { width:34px;height:34px;object-fit:contain; }
       .mobile-well-header strong,.mobile-well-header span { display:block; }
@@ -87,6 +89,12 @@
       .mobile-well-actions { display:grid;border-top:1px solid #777b70; }
       .mobile-well-actions button { display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:42px;border:0;border-bottom:1px solid #777b70;padding:9px 2px;background:transparent;color:#282b27;font-weight:800;text-align:left;text-transform:uppercase; }
       .mobile-well-actions button::after { content:"→";color:#777b70; }
+      .qa[data-compact="true"] .toolbar .count,.qa[data-compact="true"] .toolbar [data-action="export"],.qa[data-compact="true"] .toolbar .move-widget { display:none; }
+      .qa[data-compact="true"] .toolbar { box-shadow:4px 4px 0 #666b45; }
+      .qa[data-compact="true"] .toolbar [data-action="select"] { width:44px;min-height:44px;padding:4px;font-size:0; }
+      .qa[data-compact="true"] .toolbar [data-action="select"]::before { content:"+";font:800 23px/1 ui-sans-serif,system-ui,sans-serif; }
+      .qa[data-compact="true"] .toolbar [data-action="select"].active::before { content:"×"; }
+      .qa[data-compact="true"] .well-mark { width:44px;min-height:44px!important; }
       .move-widget { width:43px;padding:8px!important; }
       .move-widget-icon { display:block;width:24px;height:24px;font-size:22px;line-height:22px;text-align:center; }
       .outline { display:none;position:fixed;border:2px solid #a84f2f;background:#a84f2f1a;pointer-events:none; }
@@ -154,7 +162,8 @@
         .toolbar [data-action="select"].active::before { content:"×"; }
         .well-mark { width:44px;min-height:44px!important; }
         .well-mark img { width:30px;height:30px; }
-        .mobile-well.open { display:block!important;width:min(270px,calc(100vw - 28px))!important;padding:15px; }
+        .mobile-well.open { width:min(270px,calc(100vw - 28px))!important; }
+        .mobile-well [data-action="toggle-compact"] { display:none; }
         .panel { width:calc(100vw - 28px);max-height:calc(100dvh - 86px);padding:16px; }
         .qa[data-placement="bottom-right"] .toolbar { right:14px;bottom:14px; }
         .qa[data-placement="bottom-right"] .panel { right:14px;bottom:66px; }
@@ -231,6 +240,7 @@
         <div class="mobile-well-actions">
           <button data-action="list">Saved notes</button>
           <button data-action="export">Finish and send</button>
+          <button data-action="toggle-compact">Minimize widget</button>
           <button data-action="info">About this review</button>
           <button data-action="move-widget">Move the well</button>
         </div>
@@ -253,6 +263,7 @@
   cleanup.push(() => mobileExportObserver.disconnect());
   syncMobileExport();
   updateWidgetPlacement();
+  updateWidgetMode();
 
   on(root, "click", async (event) => {
     const action = event.target.closest("[data-action]")?.dataset.action;
@@ -277,6 +288,7 @@
     if (action === "edit-note") editNote(event.target.closest("[data-note-id]")?.dataset.noteId);
     if (action === "close-notes") openPanel(null);
     if (action === "well") openWell();
+    if (action === "toggle-compact") toggleCompactMode();
     if (action === "info") openPanel("info");
     if (action === "close-info") openPanel(null);
     if (action === "destroy") destroy();
@@ -738,6 +750,7 @@
 
   function restoreSession() {
     try {
+      state.widgetCompact = localStorage.getItem(COMPACT_KEY) === "true";
       const useLegacy = legacySessionMatchesProject();
       const identity = JSON.parse(sessionStorage.getItem(IDENTITY_KEY) || (useLegacy ? sessionStorage.getItem(LEGACY_IDENTITY_KEY) : "") || "null");
       if (identity) {
@@ -1254,11 +1267,21 @@
   }
 
   function openWell() {
-    if (!window.matchMedia("(max-width: 640px), (hover: none) and (pointer: coarse)").matches) {
-      openPanel("info");
-      return;
-    }
     openPanel($(".panel.mobile-well").classList.contains("open") ? null : "mobile-well");
+  }
+
+  function toggleCompactMode() {
+    state.widgetCompact = !state.widgetCompact;
+    try { localStorage.setItem(COMPACT_KEY, String(state.widgetCompact)); }
+    catch (error) { console.warn("QAWELL could not remember the widget size.", error); }
+    updateWidgetMode();
+    openPanel(null);
+    toast(state.widgetCompact ? "Widget minimized" : "Widget expanded");
+  }
+
+  function updateWidgetMode() {
+    $(".qa").dataset.compact = String(state.widgetCompact);
+    $("[data-action=toggle-compact]").textContent = state.widgetCompact ? "Expand widget" : "Minimize widget";
   }
 
   function syncMobileExport() {
