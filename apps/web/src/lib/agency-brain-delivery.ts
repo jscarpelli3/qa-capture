@@ -21,7 +21,8 @@ export async function deliverReviewToAgencyBrain(reviewId: string, review: Qawel
     const noteAssets = (note.assets || []).map((id) => assetsById.get(id)).filter((asset): asset is ReviewAsset => Boolean(asset));
     const uploadableAssets = noteAssets.slice(0, 5);
     const overflowCount = Math.max(0, noteAssets.length - uploadableAssets.length);
-    const { data: existing } = await admin.from("review_deliveries").select("id,status,external_id,attachment_count,attachments_delivered,attachments_failed").eq("review_id", reviewId).eq("integration_id", integration.id).eq("note_id", note.id).maybeSingle();
+    const { data: existing, error: existingError } = await admin.from("review_deliveries").select("id,status,external_id,attachment_count,attachments_delivered,attachments_failed").eq("review_id", reviewId).eq("integration_id", integration.id).eq("note_id", note.id).maybeSingle();
+    if (existingError) throw new Error("Could not read the Agency Brain delivery record");
     if (existing?.status === "delivered" && existing.external_id && existing.attachment_count === noteAssets.length) {
       delivered += 1;
       attachmentsDelivered += existing.attachments_delivered || 0;
@@ -29,7 +30,8 @@ export async function deliverReviewToAgencyBrain(reviewId: string, review: Qawel
       continue;
     }
     const deliveryId = existing?.id || crypto.randomUUID();
-    await admin.from("review_deliveries").upsert({ id: deliveryId, review_id: reviewId, integration_id: integration.id, note_id: note.id, status: "delivering", attempted_at: new Date().toISOString(), error_code: null, attachment_count: noteAssets.length, attachments_delivered: 0, attachments_failed: 0 });
+    const { error: deliveryStartError } = await admin.from("review_deliveries").upsert({ id: deliveryId, review_id: reviewId, integration_id: integration.id, note_id: note.id, status: "delivering", attempted_at: new Date().toISOString(), error_code: null, attachment_count: noteAssets.length, attachments_delivered: 0, attachments_failed: 0 });
+    if (deliveryStartError) throw new Error("Could not initialize the Agency Brain delivery record");
     const reconciled = findExistingTicket(externalTickets, review.header?.id, note.id);
     let ticketId: string;
     let ticketLabel: string;
@@ -61,7 +63,8 @@ export async function deliverReviewToAgencyBrain(reviewId: string, review: Qawel
 
     const attachmentResult = await uploadAttachments(apiKey, ticketId, uploadableAssets);
     const failedCount = attachmentResult.failed + overflowCount;
-    await admin.from("review_deliveries").update({ status: "delivered", external_id: ticketId, external_label: ticketLabel, delivered_at: new Date().toISOString(), attachments_delivered: attachmentResult.delivered, attachments_failed: failedCount, error_code: failedCount ? attachmentResult.firstError || "agency_brain_attachment_limit" : null }).eq("id", deliveryId);
+    const { error: deliveryFinishError } = await admin.from("review_deliveries").update({ status: "delivered", external_id: ticketId, external_label: ticketLabel, delivered_at: new Date().toISOString(), attachments_delivered: attachmentResult.delivered, attachments_failed: failedCount, error_code: failedCount ? attachmentResult.firstError || "agency_brain_attachment_limit" : null }).eq("id", deliveryId);
+    if (deliveryFinishError) throw new Error("Could not save the Agency Brain delivery result");
     delivered += 1;
     attachmentsDelivered += attachmentResult.delivered;
     attachmentsFailed += failedCount;
