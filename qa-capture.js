@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.10";
+  const VERSION = "0.4.11";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -179,12 +179,12 @@
       <div class="pins"></div>
       <div class="outline"></div>
       <section class="panel setup open" aria-label="QAWELL setup">
-        <h2>Start a QA review</h2>
+        <h2 data-setup-heading>Start a QA review</h2>
         <div class="identity"><strong data-identity-project>Loading project…</strong><span data-identity-owner>QAWELL review utility</span><em data-identity-environment></em><em data-identity-delivery></em></div>
         <label for="reviewer">Your name</label>
         <input id="reviewer" autocomplete="name" placeholder="Bob Sacamano">
         <p class="hint">Stored only in the review data you download.</p>
-        <div class="actions"><button class="primary" data-action="start">Start review</button></div>
+        <div class="actions"><button data-action="dismiss-setup">Skip for now</button><button class="primary" data-action="start">Start review</button></div>
       </section>
       <section class="panel note" aria-label="Add QA note">
         <h2>Add note</h2>
@@ -240,6 +240,7 @@
         <div class="mobile-well-actions">
           <button data-action="list">Saved notes</button>
           <button data-action="export">Finish and send</button>
+          <button data-action="edit-reviewer">Change reviewer name</button>
           <button data-action="toggle-compact">Minimize widget</button>
           <button data-action="info">About this review</button>
           <button data-action="move-widget">Move the well</button>
@@ -258,6 +259,7 @@
   let pendingClick = null;
   let pendingScreenshot = null;
   let editingNoteId = null;
+  let editingReviewer = false;
   const mobileExportObserver = new MutationObserver(syncMobileExport);
   mobileExportObserver.observe(toolbarExport, { attributes:true, attributeFilter:["disabled"], childList:true, characterData:true, subtree:true });
   cleanup.push(() => mobileExportObserver.disconnect());
@@ -268,7 +270,8 @@
   on(root, "click", async (event) => {
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (!action) return;
-    if (action === "start") startReview();
+    if (action === "start") await startReview();
+    if (action === "dismiss-setup") await dismissReviewerSetup();
     if (action === "select") toggleSelection();
     if (action === "reselect") reselectTarget();
     if (action === "cancel-note") closeNote();
@@ -289,6 +292,7 @@
     if (action === "close-notes") openPanel(null);
     if (action === "well") openWell();
     if (action === "toggle-compact") toggleCompactMode();
+    if (action === "edit-reviewer") openReviewerEditor();
     if (action === "info") openPanel("info");
     if (action === "close-info") openPanel(null);
     if (action === "destroy") destroy();
@@ -356,21 +360,42 @@
     const startButton = $("[data-action=start]");
     if (startButton.disabled) return;
     startButton.disabled = true;
-    startButton.textContent = hosted.invitationToken ? "Starting invited review…" : "Starting…";
-    state.reviewer = $("#reviewer").value.trim() || "Anonymous reviewer";
+    startButton.textContent = editingReviewer ? "Saving…" : hosted.invitationToken ? "Starting invited review…" : "Starting…";
+    state.reviewer = $("#reviewer").value.trim() || "Bob Sacamano";
     try {
       if (hosted.projectKey && hosted.invitationToken && !hosted.reviewId) await startHostedReview();
       persistSession();
       toolbar.hidden = false;
       openPanel(null);
-      toggleSelection(true);
-      toast("Select an element");
+      toggleSelection(false);
+      toast(editingReviewer ? "Reviewer name saved" : "Review ready — use Add note when you are ready");
+      setReviewerSetupMode(false);
     } catch (error) {
       toast(safeString(error));
     } finally {
       startButton.disabled = false;
-      startButton.textContent = "Start review";
+      startButton.textContent = editingReviewer ? "Save name" : "Start review";
     }
+  }
+
+  async function dismissReviewerSetup() {
+    $("#reviewer").value = "Bob Sacamano";
+    await startReview();
+  }
+
+  function openReviewerEditor() {
+    setReviewerSetupMode(true);
+    $("#reviewer").value = state.reviewer || "Bob Sacamano";
+    openPanel("setup");
+    $("#reviewer").focus();
+    $("#reviewer").select();
+  }
+
+  function setReviewerSetupMode(editing) {
+    editingReviewer = editing;
+    $("[data-setup-heading]").textContent = editing ? "Reviewer name" : "Start a QA review";
+    $("[data-action=dismiss-setup]").hidden = editing;
+    $("[data-action=start]").textContent = editing ? "Save name" : "Start review";
   }
 
   function renderInvitationSwitch() {
@@ -436,8 +461,8 @@
       updatePins();
       toolbar.hidden = false;
       openPanel(null);
-      toggleSelection(true);
-      toast("Invited review started — select an element");
+      toggleSelection(false);
+      toast("Invited review ready — use Add note when you are ready");
     } catch (error) {
       $("[data-switch-status]").textContent = safeString(error);
       $("[data-switch-status]").className = "finish-status error";
@@ -968,8 +993,8 @@
       confirmButton.disabled = false;
       button.hidden = true;
       openPanel(null);
-      toggleSelection(true);
-      toast("Fresh QA pass started");
+      toggleSelection(false);
+      toast("Fresh QA pass ready");
     } catch (error) {
       setFinishStatus(`${safeString(error)}. Reopen the project’s QA link and try again.`, "error");
       button.disabled = false;
