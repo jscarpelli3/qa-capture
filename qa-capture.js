@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.11";
+  const VERSION = "0.4.12";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -25,10 +25,12 @@
     newInvitation: false,
     config: null,
     reviewId: null,
+    resumeToken: null,
     uploadToken: null,
     uploadExpiresAt: null,
     maxArchiveBytes: 0,
     invitedReviewerName: null,
+    draftRevision: 0,
     submitted: false,
   };
   restoreHostedSession();
@@ -54,7 +56,6 @@
     widgetCompact: false,
   };
   restoreSession();
-  if (hosted.invitationToken && !canSubmitHostedReview() && state.reviewer) hosted.newInvitation = true;
 
   const cleanup = [];
   const host = document.createElement("div");
@@ -78,6 +79,9 @@
       .toolbar button.active { background:#a84f2f;color:#e7e4da; }
       .toolbar .count { background:transparent;color:#282b27;padding:8px 10px;white-space:nowrap;text-transform:none;letter-spacing:0;font-weight:600; }
       .toolbar .count:hover { background:#d8d5ca;color:#282b27; }
+      .sync-state { padding:8px 10px;color:#666b45;font-size:10px;white-space:nowrap;text-transform:uppercase; }
+      .sync-state[data-state="syncing"] { color:#a84f2f; }
+      .sync-state[data-state="waiting"] { color:#7c321c; }
       .well-mark { display:grid;place-items:center;width:38px;padding:0!important;background:#d8d5ca!important; }
       .well-mark img { display:block;width:31px;height:31px;object-fit:contain; }
       .mobile-well.open { display:block!important;width:min(270px,calc(100vw - 36px))!important;padding:15px; }
@@ -89,7 +93,7 @@
       .mobile-well-actions { display:grid;border-top:1px solid #777b70; }
       .mobile-well-actions button { display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:42px;border:0;border-bottom:1px solid #777b70;padding:9px 2px;background:transparent;color:#282b27;font-weight:800;text-align:left;text-transform:uppercase; }
       .mobile-well-actions button::after { content:"→";color:#777b70; }
-      .qa[data-compact="true"] .toolbar .count,.qa[data-compact="true"] .toolbar [data-action="export"],.qa[data-compact="true"] .toolbar .move-widget { display:none; }
+      .qa[data-compact="true"] .toolbar .count,.qa[data-compact="true"] .toolbar .sync-state,.qa[data-compact="true"] .toolbar [data-action="export"],.qa[data-compact="true"] .toolbar .move-widget { display:none; }
       .qa[data-compact="true"] .toolbar { box-shadow:4px 4px 0 #666b45; }
       .qa[data-compact="true"] .toolbar [data-action="select"] { width:44px;min-height:44px;padding:4px;font-size:0; }
       .qa[data-compact="true"] .toolbar [data-action="select"]::before { content:"+";font:800 23px/1 ui-sans-serif,system-ui,sans-serif; }
@@ -156,7 +160,7 @@
       .toast.show { display:block; }
       @media (max-width:640px), (hover:none) and (pointer:coarse) {
         .toolbar { box-shadow:4px 4px 0 #666b45; }
-        .toolbar .count,.toolbar [data-action="export"],.toolbar .move-widget { display:none; }
+        .toolbar .count,.toolbar .sync-state,.toolbar [data-action="export"],.toolbar .move-widget { display:none; }
         .toolbar [data-action="select"] { width:44px;min-height:44px;padding:4px;font-size:0; }
         .toolbar [data-action="select"]::before { content:"+";font:800 23px/1 ui-sans-serif,system-ui,sans-serif; }
         .toolbar [data-action="select"].active::before { content:"×"; }
@@ -232,11 +236,12 @@
         <button class="well-mark" data-action="well" aria-label="Open QAWELL review controls"><img src="https://qawell.dev/icon.png" alt=""></button>
         <button data-action="select" class="primary">＋ Add note</button>
         <button data-action="list" class="count" title="View saved notes">0 notes</button>
+        <span class="sync-state" data-sync-status data-state="local">Saved locally</span>
         <button data-action="export">Export ZIP</button>
         <button class="move-widget" data-action="move-widget" title="Move widget" aria-label="Move widget"><span class="move-widget-icon" aria-hidden="true"></span></button>
       </div>
       <section class="panel mobile-well" aria-label="QAWELL review controls">
-        <div class="mobile-well-header"><img src="https://qawell.dev/icon.png" alt=""><div><strong>QAWELL</strong><span data-mobile-count>No notes yet</span></div></div>
+        <div class="mobile-well-header"><img src="https://qawell.dev/icon.png" alt=""><div><strong>QAWELL</strong><span data-mobile-count>No notes yet</span><span data-sync-status data-state="local">Saved locally</span></div></div>
         <div class="mobile-well-actions">
           <button data-action="list">Saved notes</button>
           <button data-action="export">Finish and send</button>
@@ -311,6 +316,10 @@
     const token = readInvitationToken();
     if (token) acceptInvitation(token);
   });
+  on(window, "online", () => {
+    if (hosted.reviewId && hosted.resumeToken && !canSubmitHostedReview()) void reconnectDraftSession();
+    else void syncAllDraftNotes();
+  });
   on(window, "error", (event) => {
     state.errors.push({
       type: "error",
@@ -354,6 +363,8 @@
     updatePins();
     toggleSelection(false);
     toast("Review restored");
+    if (hosted.reviewId && hosted.resumeToken) void reconnectDraftSession();
+    else if (hosted.projectKey && hosted.invitationToken) void upgradeLocalSession();
   }
 
   async function startReview() {
@@ -363,7 +374,9 @@
     startButton.textContent = editingReviewer ? "Saving…" : hosted.invitationToken ? "Starting invited review…" : "Starting…";
     state.reviewer = $("#reviewer").value.trim() || "Bob Sacamano";
     try {
-      if (hosted.projectKey && hosted.invitationToken && !hosted.reviewId) await startHostedReview();
+      if (hosted.projectKey && hosted.invitationToken && hosted.reviewId && hosted.resumeToken && !editingReviewer) await startHostedReview();
+      else if (hosted.projectKey && hosted.invitationToken && (!hosted.reviewId || !hosted.resumeToken)) await startHostedReview({ recoverByName:true });
+      else if (editingReviewer && hosted.reviewId && hosted.resumeToken) await syncReviewerName();
       persistSession();
       toolbar.hidden = false;
       openPanel(null);
@@ -406,12 +419,25 @@
   }
 
   function acceptInvitation(token) {
-    if (!token || token === hosted.invitationToken && canSubmitHostedReview()) return;
+    if (!token) return;
+    if (token === hosted.invitationToken) {
+      if (hosted.reviewId && hosted.resumeToken) void reconnectDraftSession();
+      return;
+    }
+    if (hosted.reviewId && hosted.resumeToken) {
+      hosted.invitationToken = token;
+      hosted.newInvitation = false;
+      persistHostedSession();
+      void reconnectDraftSession();
+      return;
+    }
     hosted.invitationToken = token;
     hosted.newInvitation = true;
     hosted.reviewId = null;
+    hosted.resumeToken = null;
     hosted.uploadToken = null;
     hosted.uploadExpiresAt = null;
+    hosted.draftRevision = 0;
     hosted.submitted = false;
     persistHostedSession();
     loadHostedConfig();
@@ -428,8 +454,10 @@
     hosted.invitationToken = "";
     hosted.newInvitation = false;
     hosted.reviewId = null;
+    hosted.resumeToken = null;
     hosted.uploadToken = null;
     hosted.uploadExpiresAt = null;
+    hosted.draftRevision = 0;
     sessionStorage.removeItem(HOSTED_KEY);
     localStorage.removeItem(HOSTED_RECOVERY_KEY);
     toolbar.hidden = false;
@@ -443,8 +471,10 @@
     $("[data-switch-status]").textContent = "Starting the invited review…";
     const previousReviewer = state.reviewer;
     hosted.reviewId = null;
+    hosted.resumeToken = null;
     hosted.uploadToken = null;
     hosted.uploadExpiresAt = null;
+    hosted.draftRevision = 0;
     hosted.submitted = false;
     try {
       await startHostedReview();
@@ -546,6 +576,7 @@
         }
       }
       persistSession();
+      void syncDraftNote(structuredClone(note));
       resetNoteEditor();
       updatePins();
       openPanel(null);
@@ -576,6 +607,7 @@
     }
     state.notes.push(note);
     persistSession();
+    void syncDraftNote(structuredClone(note));
     resetNoteEditor();
     updatePins();
     openPanel(null);
@@ -856,6 +888,7 @@
 
   async function finishReview() {
     if (!state.notes.length && !confirm("There are no notes yet. Download an empty review?")) return;
+    if (hosted.reviewId && hosted.resumeToken) await syncAllDraftNotes();
     if (!canSubmitHostedReview()) {
       if (hosted.invitationToken) return reconnectHostedReview();
       if (hosted.reviewId || hosted.config?.delivery?.mode === "integration") return renderDisconnectedReview();
@@ -942,6 +975,7 @@
       }
       hosted.uploadToken = null;
       hosted.uploadExpiresAt = null;
+      hosted.resumeToken = null;
       hosted.submitted = true;
       sessionStorage.removeItem(HOSTED_KEY);
       localStorage.removeItem(HOSTED_RECOVERY_KEY);
@@ -971,8 +1005,10 @@
     button.disabled = true;
     button.textContent = "Starting…";
     hosted.reviewId = null;
+    hosted.resumeToken = null;
     hosted.uploadToken = null;
     hosted.uploadExpiresAt = null;
+    hosted.draftRevision = 0;
     hosted.submitted = false;
     try {
       await startHostedReview();
@@ -1034,21 +1070,39 @@
     if (hosted.newInvitation && state.reviewer) renderInvitationSwitch();
   }
 
-  async function startHostedReview() {
-    const response = await fetch(`${hosted.apiBase}/api/v1/reviews`, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, origin:location.origin }) });
+  async function startHostedReview(options = {}) {
+    const response = await fetch(`${hosted.apiBase}/api/v1/reviews`, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({
+      projectKey:hosted.projectKey,
+      invitationToken:hosted.invitationToken,
+      origin:location.origin,
+      reviewerName:state.reviewer,
+      resumeReviewId:hosted.reviewId || undefined,
+      resumeToken:hosted.resumeToken || undefined,
+      recoverByName:Boolean(options.recoverByName),
+    }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not start hosted review");
-    hosted.reviewId = result.reviewId; hosted.uploadToken = result.uploadToken; hosted.uploadExpiresAt = result.uploadExpiresAt || null; hosted.maxArchiveBytes = result.maxArchiveBytes; hosted.invitedReviewerName = result.reviewerName || null; hosted.config = result.config;
+    hosted.reviewId = result.reviewId;
+    hosted.resumeToken = result.resumeToken || hosted.resumeToken;
+    hosted.uploadToken = result.uploadToken;
+    hosted.uploadExpiresAt = result.uploadExpiresAt || null;
+    hosted.maxArchiveBytes = result.maxArchiveBytes;
+    hosted.invitedReviewerName = result.reviewerName || null;
+    hosted.draftRevision = result.draftRevision || 0;
+    hosted.config = result.config;
+    hosted.newInvitation = false;
     persistHostedSession();
     renderHostedIdentity();
+    if (result.resumed) await hydrateHostedDraft();
+    return result;
   }
 
   function persistHostedSession() {
-    const saved = { projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, newInvitation:hosted.newInvitation, reviewId:hosted.reviewId, uploadToken:hosted.uploadToken, uploadExpiresAt:hosted.uploadExpiresAt, maxArchiveBytes:hosted.maxArchiveBytes, invitedReviewerName:hosted.invitedReviewerName, config:hosted.config };
+    const saved = { projectKey:hosted.projectKey, invitationToken:hosted.invitationToken, newInvitation:hosted.newInvitation, reviewId:hosted.reviewId, resumeToken:hosted.resumeToken, uploadToken:hosted.uploadToken, uploadExpiresAt:hosted.uploadExpiresAt, maxArchiveBytes:hosted.maxArchiveBytes, invitedReviewerName:hosted.invitedReviewerName, draftRevision:hosted.draftRevision, config:hosted.config };
     try { sessionStorage.setItem(HOSTED_KEY, JSON.stringify(saved)); }
     catch (error) { console.warn("QAWELL could not persist the hosted session.", error); }
     try {
-      if (canSubmitHostedReview()) localStorage.setItem(HOSTED_RECOVERY_KEY, JSON.stringify(saved));
+      if (hosted.reviewId && hosted.resumeToken && !hosted.submitted) localStorage.setItem(HOSTED_RECOVERY_KEY, JSON.stringify(saved));
       else localStorage.removeItem(HOSTED_RECOVERY_KEY);
     } catch (error) { console.warn("QAWELL could not create hosted review recovery state.", error); }
   }
@@ -1056,8 +1110,7 @@
   function restoreHostedSession() {
     try {
       const sessionSaved = sessionStorage.getItem(HOSTED_KEY) || sessionStorage.getItem(LEGACY_HOSTED_KEY);
-      const hasReviewSession = Boolean(sessionStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(IDENTITY_KEY));
-      const recoverySaved = !sessionSaved && hasReviewSession ? localStorage.getItem(HOSTED_RECOVERY_KEY) : null;
+      const recoverySaved = !sessionSaved ? localStorage.getItem(HOSTED_RECOVERY_KEY) : null;
       const saved = JSON.parse(sessionSaved || recoverySaved || "null");
       if (!saved || saved.projectKey !== hosted.projectKey) {
         hosted.newInvitation = Boolean(incomingInvitationToken);
@@ -1071,13 +1124,146 @@
       hosted.invitationToken ||= saved.invitationToken || "";
       hosted.newInvitation = Boolean(saved.newInvitation);
       hosted.reviewId = saved.reviewId || null;
+      hosted.resumeToken = saved.resumeToken || null;
       hosted.uploadToken = saved.uploadToken || null;
       hosted.uploadExpiresAt = saved.uploadExpiresAt || null;
       if (hosted.uploadExpiresAt && new Date(hosted.uploadExpiresAt) <= new Date()) hosted.uploadToken = null;
       hosted.maxArchiveBytes = saved.maxArchiveBytes || 0;
       hosted.invitedReviewerName = saved.invitedReviewerName || null;
+      hosted.draftRevision = saved.draftRevision || 0;
       hosted.config = saved.config || null;
     } catch (error) { console.warn("QAWELL could not restore the hosted session.", error); }
+  }
+
+  async function reconnectDraftSession() {
+    if (!hosted.reviewId || !hosted.resumeToken || !hosted.invitationToken) return;
+    setSyncStatus("syncing", "Reconnecting…");
+    try {
+      const result = await startHostedReview();
+      setSyncStatus("saved", result.resumed ? "Draft restored" : "Saved to QAWell");
+      toolbar.hidden = false;
+      openPanel(null);
+    } catch (error) {
+      console.warn("QAWELL could not reconnect the saved review.", error);
+      setSyncStatus("waiting", "Reconnect needed");
+    }
+  }
+
+  async function upgradeLocalSession() {
+    setSyncStatus("syncing", "Saving this review…");
+    try {
+      await startHostedReview({ recoverByName:true });
+      await syncAllDraftNotes();
+      setSyncStatus("saved", "Saved to QAWell");
+    } catch (error) {
+      console.warn("QAWELL could not move this local review into durable storage yet.", error);
+      setSyncStatus("waiting", "Sync needs retry");
+    }
+  }
+
+  async function hydrateHostedDraft() {
+    if (!hosted.reviewId || !hosted.resumeToken) return;
+    const response = await fetch(`${hosted.apiBase}/api/v1/reviews/${hosted.reviewId}/draft`, { headers:{ Authorization:`Bearer ${hosted.resumeToken}` } });
+    const draft = await response.json();
+    if (!response.ok) throw new Error(draft.error || "Could not restore the saved review");
+    hosted.draftRevision = draft.revision || 0;
+    if (draft.reviewerName) state.reviewer = draft.reviewerName;
+
+    const localNotes = new Map(state.notes.map((note) => [note.id, note]));
+    for (const serverNote of draft.notes || []) {
+      const local = localNotes.get(serverNote.id);
+      const localTime = new Date(local?.updatedAt || local?.createdAt || 0).getTime();
+      const serverTime = new Date(serverNote.updatedAt || serverNote.createdAt || 0).getTime();
+      if (!local || serverTime > localTime) localNotes.set(serverNote.id, serverNote);
+    }
+    state.notes = Array.from(localNotes.values()).sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+
+    const localAssets = new Map(state.assets.map((asset) => [asset.id, asset]));
+    const referencedAssets = new Map((draft.assets || []).map((asset) => [asset.asset_id, asset]));
+    for (const note of state.notes) {
+      for (const assetId of note.assets || []) {
+        if (localAssets.has(assetId) || !referencedAssets.has(assetId)) continue;
+        const assetResponse = await fetch(`${hosted.apiBase}/api/v1/reviews/${hosted.reviewId}/draft/assets/${encodeURIComponent(assetId)}`, { headers:{ Authorization:`Bearer ${hosted.resumeToken}` } });
+        if (!assetResponse.ok) continue;
+        const blob = await assetResponse.blob();
+        const bitmap = await createImageBitmap(blob).catch(() => null);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        localAssets.set(assetId, { id:assetId, kind:"reviewer-screenshot", path:`assets/${note.id}.${extensionForMime(blob.type)}`, mime:blob.type || "image/webp", width:bitmap?.width || null, height:bitmap?.height || null, bytes });
+        bitmap?.close?.();
+      }
+    }
+    state.assets = Array.from(localAssets.values()).filter((asset) => state.notes.some((note) => (note.assets || []).includes(asset.id)));
+    persistSession();
+    persistHostedSession();
+    updatePins();
+    $(`#reviewer`).value = state.reviewer;
+    if (state.notes.length) toast(`${state.notes.length} saved ${state.notes.length === 1 ? "note" : "notes"} restored`);
+    await syncAllDraftNotes();
+  }
+
+  const draftSyncs = new Map();
+
+  async function syncDraftNote(note) {
+    if (!hosted.reviewId || !hosted.resumeToken || hosted.submitted) {
+      setSyncStatus("local", "Saved locally");
+      return false;
+    }
+    const previous = draftSyncs.get(note.id) || Promise.resolve();
+    const task = previous.catch(() => false).then(() => performDraftNoteSync(note));
+    draftSyncs.set(note.id, task);
+    try { return await task; }
+    finally { if (draftSyncs.get(note.id) === task) draftSyncs.delete(note.id); }
+  }
+
+  async function performDraftNoteSync(note) {
+    setSyncStatus("syncing", "Syncing…");
+    try {
+      for (const assetId of note.assets || []) {
+        const asset = state.assets.find((item) => item.id === assetId);
+        if (!asset?.bytes) throw new Error("Screenshot data is unavailable");
+        const assetResponse = await fetch(`${hosted.apiBase}/api/v1/reviews/${hosted.reviewId}/draft/assets/${encodeURIComponent(asset.id)}`, {
+          method:"PUT",
+          headers:{ Authorization:`Bearer ${hosted.resumeToken}`, "Content-Type":asset.mime || "image/webp", "X-QAWELL-File-Name":encodeURIComponent(asset.path.split("/").pop() || `${asset.id}.webp`) },
+          body:asset.bytes,
+        });
+        if (!assetResponse.ok) { const failure = await assetResponse.json().catch(() => ({})); throw new Error(failure.error || "Could not save screenshot"); }
+      }
+      const response = await fetch(`${hosted.apiBase}/api/v1/reviews/${hosted.reviewId}/draft`, {
+        method:"PUT",
+        headers:{ Authorization:`Bearer ${hosted.resumeToken}`, "Content-Type":"application/json" },
+        body:JSON.stringify({ note, reviewerName:state.reviewer }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not save note");
+      hosted.draftRevision = result.revision || hosted.draftRevision;
+      persistHostedSession();
+      setSyncStatus("saved", "Saved to QAWell");
+      return true;
+    } catch (error) {
+      console.warn("QAWELL draft sync is waiting.", error);
+      setSyncStatus("waiting", navigator.onLine ? "Sync needs retry" : "Waiting for connection");
+      return false;
+    }
+  }
+
+  async function syncAllDraftNotes() {
+    if (!hosted.reviewId || !hosted.resumeToken || hosted.submitted) return;
+    for (const note of state.notes) await syncDraftNote(note);
+  }
+
+  async function syncReviewerName() {
+    if (!hosted.reviewId || !hosted.resumeToken) return;
+    const response = await fetch(`${hosted.apiBase}/api/v1/reviews/${hosted.reviewId}/draft`, { method:"PATCH", headers:{ Authorization:`Bearer ${hosted.resumeToken}`, "Content-Type":"application/json" }, body:JSON.stringify({ reviewerName:state.reviewer }) });
+    if (!response.ok) { const failure = await response.json().catch(() => ({})); throw new Error(failure.error || "Could not save reviewer name"); }
+    setSyncStatus("saved", "Saved to QAWell");
+  }
+
+  function setSyncStatus(stateName, message) {
+    root.querySelectorAll("[data-sync-status]").forEach((node) => { node.dataset.state = stateName; node.textContent = message; });
+  }
+
+  function extensionForMime(mime) {
+    return mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : "webp";
   }
 
   function legacySessionMatchesProject() {
@@ -1366,8 +1552,10 @@
     state.notes = [];
     state.assets = [];
     hosted.reviewId = null;
+    hosted.resumeToken = null;
     hosted.uploadToken = null;
     hosted.uploadExpiresAt = null;
+    hosted.draftRevision = 0;
     hosted.submitted = false;
     updatePins();
     toolbar.hidden = true;
