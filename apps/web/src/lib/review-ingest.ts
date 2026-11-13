@@ -2,13 +2,14 @@ import "server-only";
 import { del, get, put } from "@vercel/blob";
 import { parseReviewArchive, ArchiveError } from "@qa-capture/aggregate";
 import { deliverReview } from "@/lib/delivery-adapters/deliver-review";
+import { queueReviewDelivery } from "@/lib/review-delivery-queue";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { QawellReview } from "@qa-capture/aggregate";
 import { projectAllowsOrigin, type ProjectSiteMode } from "@/lib/project-site";
 
 export const MAX_ARCHIVE_BYTES = 4 * 1024 * 1024;
 
-export async function ingestReviewArchive(reviewId: string, input: Buffer) {
+export async function ingestReviewArchive(reviewId: string, input: Buffer, options: { deferDelivery?: boolean } = {}) {
   if (!input.length || input.length > MAX_ARCHIVE_BYTES) throw new IngestError("ARCHIVE_SIZE", "The review archive must be between 1 byte and 4 MiB.");
   const admin = createSupabaseAdminClient();
   const pathname = `quarantine/${reviewId}/${crypto.randomUUID()}.zip`;
@@ -56,15 +57,32 @@ export async function ingestReviewArchive(reviewId: string, input: Buffer) {
       mode: "download" | "integration";
       attachmentsDelivered?: number;
       attachmentsFailed?: number;
+      queued?: boolean;
     } = { delivered: 0, mode: "download" };
     if (reviewRecord.delivery_mode === "integration") {
-      await admin.from("reviews").update({ status: "delivering" }).eq("id", reviewId);
-      try {
-        delivery = await deliverReview(reviewId, parsed.review, parsed.assetsById);
-        await admin.from("reviews").update({ status: "delivered" }).eq("id", reviewId);
-      } catch (error) {
-        await admin.from("reviews").update({ status: "delivery_failed", rejection_code: error instanceof Error ? error.message.slice(0, 200) : "delivery_failed" }).eq("id", reviewId);
-        throw new IngestError("DELIVERY_FAILED", "The review was validated, but its integration delivery failed.");
+      if (options.deferDelivery) {
+        if (!parsed.review.notes.length) {
+          await admin.from("reviews").update({ status: "delivered", rejection_code: null }).eq("id", reviewId);
+          delivery = { delivered: 0, mode: "integration", queued: false };
+        } else {
+          await admin.from("reviews").update({ status: "queued", rejection_code: null }).eq("id", reviewId);
+        try {
+          await queueReviewDelivery(reviewId, parsed.review.notes.map((note) => note.id));
+          delivery = { delivered: 0, mode: "integration", queued: true };
+        } catch (error) {
+          await admin.from("reviews").update({ status: "delivery_failed", rejection_code: error instanceof Error ? error.message.slice(0, 200) : "queue_failed" }).eq("id", reviewId);
+          throw new IngestError("DELIVERY_FAILED", "The review was retained, but its delivery jobs could not be queued.");
+        }
+        }
+      } else {
+        await admin.from("reviews").update({ status: "delivering" }).eq("id", reviewId);
+        try {
+          delivery = await deliverReview(reviewId, parsed.review, parsed.assetsById);
+          await admin.from("reviews").update({ status: "delivered" }).eq("id", reviewId);
+        } catch (error) {
+          await admin.from("reviews").update({ status: "delivery_failed", rejection_code: error instanceof Error ? error.message.slice(0, 200) : "delivery_failed" }).eq("id", reviewId);
+          throw new IngestError("DELIVERY_FAILED", "The review was validated, but its integration delivery failed.");
+        }
       }
     }
     if (reviewRecord.invitation_id) {

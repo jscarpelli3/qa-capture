@@ -23,12 +23,17 @@ export async function POST(request: Request, { params }: RouteContext<"/api/v1/r
 
   try {
     const buffer = Buffer.from(await request.arrayBuffer());
-    const result = await ingestReviewArchive(reviewId, buffer);
+    const result = await ingestReviewArchive(reviewId, buffer, { deferDelivery: true });
     await removeFinalizedDraft(admin, reviewId);
     if (result.delivery.mode === "download") return new Response(result.archive, { status: 200, headers: { ...cors(origin), "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="qawell-review-${reviewId}.zip"`, "X-QAWELL-Notes": String(result.parsed.review.notes.length) } });
-    return json({ status: "delivered", notes: result.parsed.review.notes.length, tickets: result.delivery.delivered, attachmentsDelivered: result.delivery.attachmentsDelivered || 0, attachmentsFailed: result.delivery.attachmentsFailed || 0 }, 200, origin);
+    if (result.delivery.queued) return json({ status: "queued", accepted: true, notes: result.parsed.review.notes.length }, 202, origin);
+    return json({ status: "delivered", accepted: true, notes: result.parsed.review.notes.length, tickets: result.delivery.delivered, attachmentsDelivered: result.delivery.attachmentsDelivered || 0, attachmentsFailed: result.delivery.attachmentsFailed || 0 }, 200, origin);
   } catch (error) {
     const { data: failedReview } = await admin.from("reviews").select("status,approved_path").eq("id", reviewId).maybeSingle();
+    if (failedReview?.approved_path) {
+      await removeFinalizedDraft(admin, reviewId);
+      return json({ status: failedReview.status, accepted: true, deliveryNeedsAttention: true, message: error instanceof Error ? error.message : "The retained review needs delivery attention." }, 202, origin);
+    }
     if (failedReview?.status === "rejected" && !failedReview.approved_path) {
       await admin.from("reviews").update({ status: "created", package_nonce_consumed_at: null }).eq("id", reviewId).eq("status", "rejected");
     }

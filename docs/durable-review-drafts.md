@@ -41,6 +41,6 @@ For reusable shared links, the chooser requires possession of the current shared
 - Rotating a reusable project link does not reject active drafts. The reviewer must open the new link before reconnecting if the old invitation token is no longer valid.
 - A pre-acceptance archive validation failure restores the review to `created` and releases the consumed upload attempt so the reviewer can correct or retry it. Once a canonical package has been retained, later delivery failures remain submitted and use owner-facing delivery recovery instead.
 
-## Still deferred
+## Delivery after submission
 
-Pass 1 does not move final integration delivery to a background worker. Submission still validates the ZIP and delivers tickets synchronously. The next reliability pass should add a durable server queue, idempotent worker retries, progress reporting, and provider-aware backoff.
+Final submission validates and retains the canonical package, then creates durable delivery jobs. Agency Brain delivery continues outside the browser through Vercel Queues. See `docs/durable-delivery-queue.md`.
