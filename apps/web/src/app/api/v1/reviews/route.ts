@@ -143,7 +143,7 @@ export async function POST(request: Request) {
     if (!isShared) await admin.from("invitations").update({ status: invitation.status }).eq("id", invitation.id).eq("status", "started");
     return json({ error: "Could not start this review." }, 500, record.origin);
   }
-  return json({ reviewId: review.id, uploadToken, uploadExpiresAt, resumeToken, maxArchiveBytes: 4 * 1024 * 1024, reviewerName, config: widgetConfig(record), resumed: false }, 201, record.origin);
+  return json({ reviewId: review.id, uploadToken, uploadExpiresAt, resumeToken, maxArchiveBytes: 4 * 1024 * 1024, reviewerName, config: widgetConfig(record), resumed: false, draftRevision: 0 }, 201, record.origin);
 }
 
 async function refreshReview(
