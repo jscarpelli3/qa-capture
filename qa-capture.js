@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.15";
+  const VERSION = "0.4.16";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -1164,13 +1164,17 @@
     const button = $("[data-action=new-pass]");
     button.disabled = true;
     button.textContent = "Starting…";
+    const submittedReviewId = hosted.reviewId;
     hosted.reviewId = null;
     hosted.resumeToken = null;
     hosted.uploadToken = null;
     hosted.uploadExpiresAt = null;
     hosted.draftRevision = 0;
     try {
-      await startHostedReview();
+      const freshReview = await startHostedReview();
+      if (freshReview.resumed || freshReview.reviewId === submittedReviewId || freshReview.draftRevision !== 0) {
+        throw new Error("QAWELL could not verify an empty fresh QA pass");
+      }
       resetSubmittedPassState();
       hosted.submitted = false;
       persistHostedSession();
