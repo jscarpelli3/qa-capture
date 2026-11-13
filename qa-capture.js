@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.13";
+  const VERSION = "0.4.14";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -636,6 +636,11 @@
   }
 
   function beginAddingNote() {
+    if (hosted.submitted) {
+      openPanel("finish");
+      toast("Start a fresh QA pass before adding another note");
+      return;
+    }
     if (!state.reviewer) {
       openPanel("setup");
       $("#reviewer").focus();
@@ -1125,7 +1130,8 @@
       else {
         confirmButton.hidden = true;
         $("[data-action=cancel-finish]").textContent = "Close";
-        $("[data-action=new-pass]").hidden = false;
+        resetSubmittedPassState();
+        await startFreshHostedPass({ preserveFinish:true, alreadyReset:true });
       }
     } catch (error) {
       setFinishStatus(`${safeString(error)}. Your notes are still here; download a recovery ZIP before leaving this page.`, "error");
@@ -1141,7 +1147,21 @@
     }
   }
 
-  async function startFreshHostedPass() {
+  function resetSubmittedPassState() {
+    state.id = makeId("review");
+    state.startedAt = new Date().toISOString();
+    state.notes = [];
+    state.assets = [];
+    state.errors = [];
+    state.failedRequests = [];
+    sessionStorage.removeItem(STORAGE_KEY);
+    persistSession();
+    toggleSelection(false);
+    updatePins();
+  }
+
+  async function startFreshHostedPass(options = {}) {
+    const preserveFinish = Boolean(options.preserveFinish);
     const button = $("[data-action=new-pass]");
     button.disabled = true;
     button.textContent = "Starting…";
@@ -1150,18 +1170,11 @@
     hosted.uploadToken = null;
     hosted.uploadExpiresAt = null;
     hosted.draftRevision = 0;
-    hosted.submitted = false;
     try {
       await startHostedReview();
-      state.id = makeId("review");
-      state.startedAt = new Date().toISOString();
-      state.notes = [];
-      state.assets = [];
-      state.errors = [];
-      state.failedRequests = [];
-      sessionStorage.removeItem(STORAGE_KEY);
-      persistSession();
-      updatePins();
+      if (!options.alreadyReset) resetSubmittedPassState();
+      hosted.submitted = false;
+      persistHostedSession();
       const toolbarButton = $("[data-action=export]");
       toolbarButton.disabled = false;
       toolbarButton.textContent = "Send QA";
@@ -1169,12 +1182,14 @@
       confirmButton.hidden = false;
       confirmButton.disabled = false;
       button.hidden = true;
-      openPanel(null);
+      if (!preserveFinish) openPanel(null);
       toggleSelection(false);
-      toast("Fresh QA pass ready");
+      toast(preserveFinish ? "Sent — fresh QA pass ready" : "Fresh QA pass ready");
     } catch (error) {
-      setFinishStatus(`${safeString(error)}. Reopen the project’s QA link and try again.`, "error");
+      hosted.submitted = true;
+      if (!preserveFinish) setFinishStatus(`${safeString(error)}. Reopen the project’s QA link and try again.`, "error");
       button.disabled = false;
+      button.hidden = false;
       button.textContent = "Try another QA pass again";
     }
   }
