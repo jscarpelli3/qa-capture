@@ -1,3 +1,4 @@
+import { del } from "@vercel/blob";
 import { authorizeDraftReview, draftCors, draftJson, loadDraft, MAX_DRAFT_NOTES, validDraftId } from "@/lib/review-drafts";
 
 export async function GET(request: Request, { params }: RouteContext<"/api/v1/reviews/[reviewId]/draft">) {
@@ -70,6 +71,28 @@ export async function PATCH(request: Request, { params }: RouteContext<"/api/v1/
   const { error } = await authorized.admin.from("reviews").update({ reviewer_name: reviewerName, draft_updated_at: now }).eq("id", reviewId).eq("status", "created");
   if (error) return draftJson({ error: "Could not save the reviewer name." }, 500, authorized.origin);
   return draftJson({ saved: true, reviewerName, updatedAt: now }, 200, authorized.origin);
+}
+
+export async function DELETE(request: Request, { params }: RouteContext<"/api/v1/reviews/[reviewId]/draft">) {
+  const { reviewId } = await params;
+  const authorized = await authorizeDraftReview(request, reviewId);
+  if ("error" in authorized) return authorized.error;
+  const { data: assets, error: assetError } = await authorized.admin.from("review_assets").select("storage_path").eq("review_id", reviewId);
+  if (assetError) return draftJson({ error: "Could not inspect this unsubmitted session." }, 500, authorized.origin);
+  try {
+    const paths = (assets || []).map((asset) => asset.storage_path);
+    if (paths.length) await del(paths);
+  } catch {
+    return draftJson({ error: "Could not remove this session's saved screenshots." }, 502, authorized.origin);
+  }
+  const [{ error: noteDeleteError }, { error: assetDeleteError }] = await Promise.all([
+    authorized.admin.from("review_notes").delete().eq("review_id", reviewId),
+    authorized.admin.from("review_assets").delete().eq("review_id", reviewId),
+  ]);
+  if (noteDeleteError || assetDeleteError) return draftJson({ error: "Could not remove this unsubmitted session." }, 500, authorized.origin);
+  const { error: reviewError } = await authorized.admin.from("reviews").update({ status: "rejected", rejection_code: "reviewer_discarded", resume_secret_hash: null }).eq("id", reviewId).eq("status", "created");
+  if (reviewError) return draftJson({ error: "Could not close this unsubmitted session." }, 500, authorized.origin);
+  return draftJson({ discarded: true }, 200, authorized.origin);
 }
 
 export async function OPTIONS(request: Request) { return new Response(null, { status: 204, headers: draftCors(request.headers.get("origin") || "*") }); }

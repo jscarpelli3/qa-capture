@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.12";
+  const VERSION = "0.4.13";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -145,6 +145,14 @@
       .note-list-page { display:block;margin-top:6px;color:#888;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
       .note-list-actions { display:flex;justify-content:flex-end;margin-top:8px; }
       .note-list-edit { border:0;border-bottom:1px solid #a84f2f;padding:2px 0;background:transparent;color:#a84f2f;font-size:10px;font-weight:800;text-transform:uppercase; }
+      .draft-list { display:grid;gap:9px; }
+      .draft-item { padding:12px;border:1px solid #777b70;background:#d8d5ca; }
+      .draft-item strong,.draft-item span { display:block; }
+      .draft-item span { margin-top:4px;color:#666b45;font-size:10px;text-transform:uppercase; }
+      .draft-actions { display:flex;flex-wrap:wrap;gap:7px;margin-top:10px; }
+      .draft-actions button { border:1px solid #282b27;padding:7px 9px;background:transparent;color:#282b27;font-size:10px;font-weight:800;text-transform:uppercase; }
+      .draft-actions .primary { background:#282b27;color:#e7e4da; }
+      .draft-actions .danger { margin-left:auto;border-color:#a84f2f;color:#7c321c; }
       .finish-summary { padding:12px;border:1px solid #282b27;background:#d8d5ca; }
       .finish-summary strong,.finish-summary span { display:block; }
       .finish-summary span { margin-top:6px;font:12px/1.45 ui-sans-serif,system-ui,sans-serif; }
@@ -189,6 +197,13 @@
         <input id="reviewer" autocomplete="name" placeholder="Bob Sacamano">
         <p class="hint">Stored only in the review data you download.</p>
         <div class="actions"><button data-action="dismiss-setup">Skip for now</button><button class="primary" data-action="start">Start review</button></div>
+      </section>
+      <section class="panel draft-chooser" aria-label="Unsubmitted QA sessions">
+        <h2>Unsubmitted QA sessions</h2>
+        <p>Continue a saved session, review it before sending, or start a new QA pass.</p>
+        <div class="draft-list"></div>
+        <p class="finish-status" data-draft-status role="status"></p>
+        <div class="actions"><button class="primary" data-action="start-new-session">Start a new QA pass</button></div>
       </section>
       <section class="panel note" aria-label="Add QA note">
         <h2>Add note</h2>
@@ -265,6 +280,7 @@
   let pendingScreenshot = null;
   let editingNoteId = null;
   let editingReviewer = false;
+  let availableDrafts = [];
   const mobileExportObserver = new MutationObserver(syncMobileExport);
   mobileExportObserver.observe(toolbarExport, { attributes:true, attributeFilter:["disabled"], childList:true, characterData:true, subtree:true });
   cleanup.push(() => mobileExportObserver.disconnect());
@@ -276,6 +292,10 @@
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (!action) return;
     if (action === "start") await startReview();
+    if (action === "continue-draft") await continueDraft(event.target.closest("[data-review-id]")?.dataset.reviewId, false);
+    if (action === "submit-draft") await continueDraft(event.target.closest("[data-review-id]")?.dataset.reviewId, true);
+    if (action === "discard-draft") await discardDraft(event.target.closest("[data-review-id]")?.dataset.reviewId);
+    if (action === "start-new-session") startNewSessionFromChooser();
     if (action === "dismiss-setup") await dismissReviewerSetup();
     if (action === "select") toggleSelection();
     if (action === "reselect") reselectTarget();
@@ -375,7 +395,7 @@
     state.reviewer = $("#reviewer").value.trim() || "Bob Sacamano";
     try {
       if (hosted.projectKey && hosted.invitationToken && hosted.reviewId && hosted.resumeToken && !editingReviewer) await startHostedReview();
-      else if (hosted.projectKey && hosted.invitationToken && (!hosted.reviewId || !hosted.resumeToken)) await startHostedReview({ recoverByName:true });
+      else if (hosted.projectKey && hosted.invitationToken && (!hosted.reviewId || !hosted.resumeToken)) await startHostedReview();
       else if (editingReviewer && hosted.reviewId && hosted.resumeToken) await syncReviewerName();
       persistSession();
       toolbar.hidden = false;
@@ -394,6 +414,121 @@
   async function dismissReviewerSetup() {
     $("#reviewer").value = "Bob Sacamano";
     await startReview();
+  }
+
+  async function loadUnsubmittedSessions() {
+    if (!hosted.projectKey || !hosted.invitationToken || hosted.reviewId) return [];
+    const query = new URLSearchParams({ projectKey:hosted.projectKey, origin:location.origin });
+    const response = await fetch(`${hosted.apiBase}/api/v1/reviews?${query}`, { headers:{ Accept:"application/json", Authorization:`Bearer ${hosted.invitationToken}` } });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not load unsubmitted QA sessions");
+    availableDrafts = result.sessions || [];
+    return availableDrafts;
+  }
+
+  async function showUnsubmittedSessions() {
+    const status = $("[data-draft-status]");
+    status.textContent = "Checking for saved sessions…";
+    status.className = "finish-status";
+    try {
+      const drafts = await loadUnsubmittedSessions();
+      if (!drafts.length) {
+        status.textContent = "";
+        openPanel("setup");
+        return;
+      }
+      renderDraftChooser(drafts);
+      openPanel("draft-chooser");
+    } catch (error) {
+      status.textContent = safeString(error);
+      status.className = "finish-status error";
+      openPanel("draft-chooser");
+    }
+  }
+
+  function renderDraftChooser(drafts) {
+    const list = $(".draft-list");
+    list.textContent = "";
+    for (const draft of drafts) {
+      const item = document.createElement("article");
+      item.className = "draft-item";
+      item.dataset.reviewId = draft.reviewId;
+      const name = document.createElement("strong");
+      name.textContent = draft.reviewerName || "Unnamed reviewer";
+      const details = document.createElement("span");
+      const updated = new Intl.DateTimeFormat(undefined, { dateStyle:"medium", timeStyle:"short" }).format(new Date(draft.updatedAt));
+      details.textContent = `${draft.noteCount} ${draft.noteCount === 1 ? "note" : "notes"} · Updated ${updated}`;
+      const actions = document.createElement("div");
+      actions.className = "draft-actions";
+      actions.innerHTML = `<button class="primary" data-action="continue-draft">Continue</button><button data-action="submit-draft">Review &amp; submit</button><button class="danger" data-action="discard-draft">Discard</button>`;
+      item.append(name, details, actions);
+      list.appendChild(item);
+    }
+    $("[data-draft-status]").textContent = "";
+    $("[data-draft-status]").className = "finish-status";
+  }
+
+  async function continueDraft(reviewId, openFinish) {
+    if (!reviewId) return;
+    setDraftChooserBusy(true, "Restoring session…");
+    try {
+      await startHostedReview({ recoverReviewId:reviewId });
+      toolbar.hidden = false;
+      openPanel(null);
+      toggleSelection(false);
+      toast("Unsubmitted QA session restored");
+      if (openFinish) await finishReview();
+    } catch (error) {
+      setDraftChooserBusy(false, safeString(error), true);
+    }
+  }
+
+  async function discardDraft(reviewId) {
+    if (!reviewId || !confirm("Discard this unsubmitted QA session? Its notes and screenshots will be removed.")) return;
+    setDraftChooserBusy(true, "Discarding session…");
+    try {
+      await startHostedReview({ recoverReviewId:reviewId, hydrate:false });
+      const response = await fetch(`${hosted.apiBase}/api/v1/reviews/${hosted.reviewId}/draft`, { method:"DELETE", headers:{ Authorization:`Bearer ${hosted.resumeToken}` } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not discard this session");
+      clearHostedReviewState();
+      toast("Unsubmitted session discarded");
+      await showUnsubmittedSessions();
+    } catch (error) {
+      setDraftChooserBusy(false, safeString(error), true);
+    }
+  }
+
+  function startNewSessionFromChooser() {
+    clearHostedReviewState();
+    state.reviewer = "";
+    $("#reviewer").value = "";
+    setReviewerSetupMode(false);
+    openPanel("setup");
+  }
+
+  function clearHostedReviewState() {
+    hosted.reviewId = null;
+    hosted.resumeToken = null;
+    hosted.uploadToken = null;
+    hosted.uploadExpiresAt = null;
+    hosted.draftRevision = 0;
+    state.id = makeId("review");
+    state.startedAt = new Date().toISOString();
+    state.notes = [];
+    state.assets = [];
+    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(IDENTITY_KEY);
+    localStorage.removeItem(HOSTED_RECOVERY_KEY);
+    persistHostedSession();
+    updatePins();
+  }
+
+  function setDraftChooserBusy(busy, message, error = false) {
+    root.querySelectorAll(".draft-chooser button").forEach((button) => { button.disabled = busy; });
+    const status = $("[data-draft-status]");
+    status.textContent = message;
+    status.className = `finish-status${error ? " error" : ""}`;
   }
 
   function openReviewerEditor() {
@@ -1068,6 +1203,7 @@
     renderHostedIdentity();
     updatePins();
     if (hosted.newInvitation && state.reviewer) renderInvitationSwitch();
+    else if (hosted.invitationToken && !hosted.reviewId && !state.reviewer) await showUnsubmittedSessions();
   }
 
   async function startHostedReview(options = {}) {
@@ -1079,6 +1215,7 @@
       resumeReviewId:hosted.reviewId || undefined,
       resumeToken:hosted.resumeToken || undefined,
       recoverByName:Boolean(options.recoverByName),
+      recoverReviewId:options.recoverReviewId || undefined,
     }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not start hosted review");
@@ -1093,7 +1230,7 @@
     hosted.newInvitation = false;
     persistHostedSession();
     renderHostedIdentity();
-    if (result.resumed) await hydrateHostedDraft();
+    if (result.resumed && options.hydrate !== false) await hydrateHostedDraft();
     return result;
   }
 

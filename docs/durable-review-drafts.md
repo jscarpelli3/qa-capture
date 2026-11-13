@@ -8,7 +8,7 @@ QAWELL saves an invited review while the reviewer works instead of waiting for t
 2. Saving a note uploads its screenshots first, then saves the note payload.
 3. The widget shows whether the latest work is saved to QAWELL, syncing, or waiting to retry.
 4. A refresh or browser restart restores the draft using the review-specific resume credential.
-5. If a Shopify preview hostname changes, reopening the project's stable QA link and entering the same reviewer name recovers the latest unfinished draft.
+5. If a Shopify preview hostname changes—or browser recovery state is unavailable—reopening the project's stable QA link shows the project's unsubmitted QA sessions. The reviewer can continue one, review it before submitting, discard it, or start a new pass.
 6. Finishing the pass still creates the canonical ZIP and runs the existing validation and delivery path.
 
 The local browser copy remains useful for responsiveness and temporary network failures, but it is not the sole source of truth for an invited review.
@@ -21,7 +21,7 @@ The local browser copy remains useful for responsiveness and temporary network f
 - Every draft request must also come from an origin currently allowed by the project, including the pinned Shopify preview-store rule.
 - Finalized reviews reject all further draft reads and writes.
 
-For reusable shared links, exact-name recovery is available when the browser no longer has its resume token. It requires possession of the current shared link, ignores the placeholder reviewer name, and only selects unfinished reviews that already contain server-saved work.
+For reusable shared links, the chooser requires possession of the current shared link and lists only `created` reviews containing at least one server-saved note. It shows reviewer name, note count, and last-updated time. Submitted reviews—including packages whose Agency Brain delivery failed—never appear as editable sessions. Exact-name recovery remains only as a compatibility path for local sessions created before the chooser existed.
 
 ## Storage and limits
 
@@ -39,6 +39,7 @@ For reusable shared links, exact-name recovery is available when the browser no 
 - A screenshot must finish saving before its note can be accepted by the server.
 - Reconnecting rotates only the short-lived final-upload credential; it does not create another review.
 - Rotating a reusable project link does not reject active drafts. The reviewer must open the new link before reconnecting if the old invitation token is no longer valid.
+- A pre-acceptance archive validation failure restores the review to `created` and releases the consumed upload attempt so the reviewer can correct or retry it. Once a canonical package has been retained, later delivery failures remain submitted and use owner-facing delivery recovery instead.
 
 ## Still deferred
 
