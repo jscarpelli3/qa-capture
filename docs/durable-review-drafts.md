@@ -30,6 +30,7 @@ For reusable shared links, exact-name recovery is available when the browser no 
 - Screenshots must be PNG, JPEG, or WebP, must pass byte-signature validation, and must not exceed 2 MB each.
 - A note may reference up to five screenshots.
 - The existing canonical archive remains the retained final record after submission.
+- After the canonical archive is safely retained, temporary draft notes and screenshot Blobs are removed. Cleanup failure does not turn a successful submission into a reviewer-facing failure; retained draft metadata remains available for later operational cleanup.
 
 ## Failure behavior
 

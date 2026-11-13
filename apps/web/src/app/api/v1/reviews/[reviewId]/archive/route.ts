@@ -1,3 +1,4 @@
+import { del } from "@vercel/blob";
 import { hashToken } from "@/lib/tokens";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ingestReviewArchive, MAX_ARCHIVE_BYTES } from "@/lib/review-ingest";
@@ -23,11 +24,33 @@ export async function POST(request: Request, { params }: RouteContext<"/api/v1/r
   try {
     const buffer = Buffer.from(await request.arrayBuffer());
     const result = await ingestReviewArchive(reviewId, buffer);
+    await removeFinalizedDraft(admin, reviewId);
     if (result.delivery.mode === "download") return new Response(result.archive, { status: 200, headers: { ...cors(origin), "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="qawell-review-${reviewId}.zip"`, "X-QAWELL-Notes": String(result.parsed.review.notes.length) } });
     return json({ status: "delivered", notes: result.parsed.review.notes.length, tickets: result.delivery.delivered, attachmentsDelivered: result.delivery.attachmentsDelivered || 0, attachmentsFailed: result.delivery.attachmentsFailed || 0 }, 200, origin);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Review processing failed.";
     return json({ error: message }, 422, origin);
+  }
+}
+
+async function removeFinalizedDraft(admin: ReturnType<typeof createSupabaseAdminClient>, reviewId: string) {
+  const { data: assets, error } = await admin.from("review_assets").select("storage_path").eq("review_id", reviewId);
+  if (error) {
+    console.error("QAWELL could not inspect finalized draft assets.", { reviewId, error: error.message });
+    return;
+  }
+  try {
+    const paths = (assets || []).map((asset) => asset.storage_path);
+    if (paths.length) await del(paths);
+    const [assetDelete, noteDelete] = await Promise.all([
+      admin.from("review_assets").delete().eq("review_id", reviewId),
+      admin.from("review_notes").delete().eq("review_id", reviewId),
+    ]);
+    if (assetDelete.error || noteDelete.error) {
+      console.error("QAWELL could not remove finalized draft rows.", { reviewId, assetError: assetDelete.error?.message, noteError: noteDelete.error?.message });
+    }
+  } catch (cleanupError) {
+    console.error("QAWELL retained a finalized draft for later cleanup.", { reviewId, error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError) });
   }
 }
 
