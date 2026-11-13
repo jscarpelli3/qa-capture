@@ -12,7 +12,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     ? await supabase.from("projects").select("id,name,environment_label,public_key,created_at").in("organization_id", organizationIds).order("created_at", { ascending: false })
     : { data: [] };
   const projectIds = (projects || []).map((project) => project.id);
-  const { data: completedReviews } = projectIds.length ? await supabase.from("reviews").select("project_id").in("project_id", projectIds).in("status", ["approved", "delivering", "delivered", "delivery_failed"]) : { data: [] };
+  const { data: completedReviews } = projectIds.length ? await supabase.from("reviews").select("project_id").in("project_id", projectIds).in("status", ["approved", "queued", "delivering", "delivered", "delivery_failed"]) : { data: [] };
   const passCounts = new Map<string, number>();
   for (const review of completedReviews || []) passCounts.set(review.project_id, (passCounts.get(review.project_id) || 0) + 1);
 

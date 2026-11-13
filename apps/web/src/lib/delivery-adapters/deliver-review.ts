@@ -14,7 +14,7 @@ const adapters: Partial<Record<IntegrationProvider, ReviewDeliveryAdapter>> = {
   },
 };
 
-export async function deliverReview(reviewId: string, review: QawellReview, assetsById: Map<string, ReviewAsset>) {
+export async function deliverReview(reviewId: string, review: QawellReview, assetsById: Map<string, ReviewAsset>, options: { noteId?: string; reconcile?: boolean } = {}) {
   const admin = createSupabaseAdminClient();
   const { data: storedReview } = await admin.from("reviews").select("project_id").eq("id", reviewId).single();
   if (!storedReview) throw new Error("Review record not found");
@@ -23,5 +23,9 @@ export async function deliverReview(reviewId: string, review: QawellReview, asse
   const provider = integration.provider as IntegrationProvider;
   const adapter = adapters[provider];
   if (!adapter) throw new Error(`${provider} delivery is not available yet`);
+  if (provider === "agency_brain") {
+    const result = await deliverReviewToAgencyBrain(reviewId, review, assetsById, options);
+    return { mode: "integration" as const, provider: "agency_brain" as const, delivered: result.delivered, attachmentsDelivered: result.attachmentsDelivered, attachmentsFailed: result.attachmentsFailed };
+  }
   return adapter.deliver({ reviewId, review, assetsById });
 }

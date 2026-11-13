@@ -109,6 +109,8 @@ Never add `NEXT_PUBLIC_` to a secret.
 
 ## Database migrations
 
+- `202611130003_delivery_dispatch_cron.sql` installs the five-minute Supabase Cron safety net for queue publishes. Its bearer secret is encrypted in Vault as `qawell_delivery_dispatch_secret` and matches production `CRON_SECRET` in Vercel.
+- `202611130002_durable_delivery_queue.sql` adds the queued review state, durable per-note delivery jobs, per-screenshot delivery attempts, and an atomic worker claim. It was applied before the queue-aware application release.
 - `202611130001_durable_review_drafts.sql` adds long-lived hashed resume credentials, draft revisions, server-saved note payloads, and private screenshot metadata. It is additive and was applied to production before the matching application release.
 - `202611090001_agency_brain_attachment_delivery.sql` records screenshot attempts, successes, and non-blocking failures on each external note delivery. Agency Brain screenshots are uploaded only after the text ticket exists, using the external attachment endpoint and the same encrypted API key.
 - `202611040002_reusable_review_links.sql` replaces per-person operational use with one reusable QA link per project. Shared links do not expire or exhaust, support concurrent/repeated passes, preserve reviewer attribution from the widget’s name field, and can be rotated or disabled by the project owner. Legacy individual invitation rows remain valid for compatibility but are no longer surfaced by the project UI.
@@ -127,10 +129,10 @@ Those five were reported as applied to the production Supabase project. Apply th
 ## Known limitations and operational rules
 
 - Invitation email is manual. The UI prints a copyable invitation link and does not falsely claim an email was sent.
-- Integration delivery is synchronous and sequential inside the upload request.
-- Durable drafts are Pass 1 reliability work. Final Agency Brain delivery is still a synchronous browser-initiated operation; moving that final delivery behind a server queue remains Pass 2.
+- Integration delivery is asynchronous. Submission retains and validates the canonical package, creates durable Supabase jobs, and publishes one Vercel Queue message per note.
+- Queue delivery is at least once. Ticket reconciliation and per-screenshot delivery records make worker retries idempotent.
 - Cross-device or cross-Shopify-host recovery for reusable shared links presents the link holder with unsubmitted sessions for that project. The chooser shows reviewer name, note count, and last-updated time and requires an explicit Continue, Review and submit, or Discard choice. The shared-link threat model treats possession of the link as authorization; exact-name recovery remains only as a compatibility path for older local sessions.
-- Agency Brain allows 120 requests per minute per API key. Each ticket creation and each screenshot upload is a separate request. The current 25-note pass limit keeps an ordinary pass with one screenshot per note below that ceiling, but avoid simultaneous large submissions until queue-backed delivery exists.
+- Agency Brain allows 120 requests per minute per API key. Each ticket creation and screenshot upload is separate, so the worker serializes note jobs globally during beta and honors provider backoff.
 - A partially delivered pass can become `delivery_failed`; successfully created note deliveries remain recorded and are reconciled before another creation attempt.
 - The production multi-reviewer/concurrency matrix remains untested manually.
 - There is no payment system, public onboarding polish, account deletion workflow, or formal operational monitoring yet.
@@ -142,9 +144,9 @@ See `docs/launch-readiness-audit-2026-10-02.md` for the fuller risk audit.
 
 The best next concrete engineering sequence is:
 
-1. Add administrator-visible per-note retry/error controls for integration failures.
-2. Move external delivery behind a durable queue and honor Agency Brain `429` retry timing.
-3. Add structured server monitoring for ingestion, Blob retention, and provider failures.
+1. Add administrator-visible manual retry controls for permanently failed delivery jobs.
+2. Add structured server monitoring and alerts for ingestion, Blob retention, queue age, and provider failures.
+3. Add a cleanup/reconciliation task for stale processing jobs and orphaned temporary draft Blobs.
 4. Implement Asana OAuth, external project selection, and the Asana delivery adapter.
 5. Verify Sifter write access, then implement its token/account connection flow and adapter.
 6. Enable Resend only after the sending domain and production email copy are ready.
@@ -173,7 +175,7 @@ At the time of this handoff, lint, the Next.js production build, and all eight a
 ## Recent checkpoints
 
 - Connection-resume UX now treats the encrypted server-side credential as durable setup state. A developer who verifies an Agency Brain key can refresh, leave, or return and continue at project selection without re-entering the key. Integrations visibly distinguish available, setup saved, and connected states. The final activation write is checked before success is shown.
-- The integration UI now states the operating limits instead of hiding them: delivery is synchronous and sequential, connected passes are capped at 25 notes, Agency Brain permits 30 ticket creations per API key per minute, simultaneous large submissions should be avoided, and failed-note self-service retry/background queueing are not available yet. Approved packages and successful ticket mappings remain retained after partial failure.
+- Connected passes remain capped at 25 notes. Delivery now runs through durable per-note jobs with provider-aware retries and per-screenshot idempotency; permanently failed jobs are visible but do not yet have an owner-facing manual retry control. Approved packages and successful ticket mappings remain retained after partial failure.
 
 - `97105db` — AI-ready retained packages and visible note-to-ticket mapping
 - `1611426` — provider-neutral delivery adapter boundary; Asana/Sifter planning

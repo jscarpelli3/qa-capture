@@ -1103,10 +1103,16 @@
         toast("Review recorded — ZIP downloaded");
       } else {
         const result = await response.json();
-        const ticketCount = result.tickets || result.notes || state.notes.length;
-        const attachmentSummary = result.attachmentsDelivered ? ` ${result.attachmentsDelivered} ${result.attachmentsDelivered === 1 ? "screenshot was" : "screenshots were"} attached.` : "";
-        const attachmentWarning = result.attachmentsFailed ? ` ${result.attachmentsFailed} ${result.attachmentsFailed === 1 ? "screenshot could" : "screenshots could"} not be attached; the text ${result.attachmentsFailed === 1 ? "ticket is" : "tickets are"} still available.` : "";
-        setFinishStatus(`${ticketCount} QA ${ticketCount === 1 ? "ticket was" : "tickets were"} sent successfully.${attachmentSummary}${attachmentWarning}`, result.attachmentsFailed ? "error" : "success");
+        if (result.status === "queued") {
+          setFinishStatus(`QA received. ${result.notes || state.notes.length} ${result.notes === 1 ? "note is" : "notes are"} safely queued for ${hostedDestination()}. You can close this page.`, "success");
+        } else if (result.deliveryNeedsAttention) {
+          setFinishStatus("QA received and retained. Delivery needs owner attention; you do not need to submit it again.", "error");
+        } else {
+          const ticketCount = result.tickets || result.notes || state.notes.length;
+          const attachmentSummary = result.attachmentsDelivered ? ` ${result.attachmentsDelivered} ${result.attachmentsDelivered === 1 ? "screenshot was" : "screenshots were"} attached.` : "";
+          const attachmentWarning = result.attachmentsFailed ? ` ${result.attachmentsFailed} ${result.attachmentsFailed === 1 ? "screenshot could" : "screenshots could"} not be attached; the text ${result.attachmentsFailed === 1 ? "ticket is" : "tickets are"} still available.` : "";
+          setFinishStatus(`${ticketCount} QA ${ticketCount === 1 ? "ticket was" : "tickets were"} sent successfully.${attachmentSummary}${attachmentWarning}`, result.attachmentsFailed ? "error" : "success");
+        }
       }
       hosted.uploadToken = null;
       hosted.uploadExpiresAt = null;
