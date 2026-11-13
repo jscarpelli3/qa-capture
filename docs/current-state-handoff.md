@@ -1,6 +1,6 @@
 # QAWELL current-state handoff
 
-Last updated: November 4, 2026  
+Last updated: November 13, 2026
 Repository: `git@github.com:jscarpelli3/qa-capture.git`  
 Production: `https://qawell.dev`  
 Vercel root directory: `apps/web`
@@ -77,10 +77,12 @@ See `docs/integration-adapter-contract.md` for the required adapter behavior. In
 ## Persistence and security
 
 - Supabase stores organizations, membership, projects, verified origins, invitations, reviews, integrations, encrypted credential records, and per-note delivery records.
+- In-progress hosted reviews are also saved note-by-note in Supabase, with screenshots written immediately to private Vercel Blob storage. A review-specific resume credential restores the draft and refreshes the short-lived final-upload credential without exposing either credential to project owners.
+- The browser still keeps a local working copy for immediate responsiveness and offline tolerance, but it is no longer the only copy of an unfinished hosted review. When a Shopify preview hostname changes, a reviewer can reopen the stable QA link and recover the latest server draft by using the same reviewer name.
 - Vercel Blob stores approved ZIPs privately. Dashboard downloads require an authenticated project member.
 - Integration secrets are never returned to the widget or stored in review archives.
 - The upload pipeline limits archive size, validates ZIP structure and paths, validates image signatures, constrains captured content, and requires every captured page to match the project's verified origin.
-- Invitations are claimed atomically. Session storage is namespaced per QAWELL project. Rotating or deleting an invitation invalidates unsubmitted `created` reviews.
+- Invitations are claimed atomically. Session storage is namespaced per QAWELL project. Rotating a reusable shared link no longer destroys its unfinished reviews; reconnecting from the newly generated link still requires the review-specific resume credential or the same non-placeholder reviewer name. Individual-link rotation continues to invalidate its unfinished review.
 - Reviewer-supplied screenshots are optional. Automatic DOM screenshots were intentionally removed because cross-origin resources made them unreliable.
 
 ## Production configuration
@@ -107,6 +109,7 @@ Never add `NEXT_PUBLIC_` to a secret.
 
 ## Database migrations
 
+- `202611130001_durable_review_drafts.sql` adds long-lived hashed resume credentials, draft revisions, server-saved note payloads, and private screenshot metadata. It is additive and was applied to production before the matching application release.
 - `202611090001_agency_brain_attachment_delivery.sql` records screenshot attempts, successes, and non-blocking failures on each external note delivery. Agency Brain screenshots are uploaded only after the text ticket exists, using the external attachment endpoint and the same encrypted API key.
 - `202611040002_reusable_review_links.sql` replaces per-person operational use with one reusable QA link per project. Shared links do not expire or exhaust, support concurrent/repeated passes, preserve reviewer attribution from the widget’s name field, and can be rotated or disabled by the project owner. Legacy individual invitation rows remain valid for compatibility but are no longer surfaced by the project UI.
 - `202611040001_shopify_preview_projects.sql` adds regular-vs-Shopify-preview project mode, the mutable current site URL used by stable QAWELL invitation links, and a pinned Shopify store ID. Shopify preview authorization permits only HTTPS hosts shaped like `[rotating token]-[that exact store ID].shopifypreview.com`; it does not wildcard other Shopify stores.
@@ -125,6 +128,8 @@ Those five were reported as applied to the production Supabase project. Apply th
 
 - Invitation email is manual. The UI prints a copyable invitation link and does not falsely claim an email was sent.
 - Integration delivery is synchronous and sequential inside the upload request.
+- Durable drafts are Pass 1 reliability work. Final Agency Brain delivery is still a synchronous browser-initiated operation; moving that final delivery behind a server queue remains Pass 2.
+- Cross-device or cross-Shopify-host recovery for reusable shared links uses the exact reviewer name. The placeholder name `Bob Sacamano` is intentionally excluded because it is not a useful identity. A future authenticated reviewer identity would be stronger, but the shared-link threat model currently treats possession of the link as authorization.
 - Agency Brain allows 120 requests per minute per API key. Each ticket creation and each screenshot upload is a separate request. The current 25-note pass limit keeps an ordinary pass with one screenshot per note below that ceiling, but avoid simultaneous large submissions until queue-backed delivery exists.
 - A partially delivered pass can become `delivery_failed`; successfully created note deliveries remain recorded and are reconciled before another creation attempt.
 - The production multi-reviewer/concurrency matrix remains untested manually.
