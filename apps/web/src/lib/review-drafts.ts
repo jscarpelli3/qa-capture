@@ -47,7 +47,7 @@ export function validDraftId(value: string, prefix: "note" | "asset") {
 export function draftCors(origin: string) {
   return {
     "Access-Control-Allow-Origin": origin || "*",
-    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type,Authorization,X-QAWELL-File-Name",
     "Access-Control-Expose-Headers": "ETag",
     Vary: "Origin",
