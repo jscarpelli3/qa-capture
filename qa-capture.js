@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.14";
+  const VERSION = "0.4.15";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -1130,8 +1130,7 @@
       else {
         confirmButton.hidden = true;
         $("[data-action=cancel-finish]").textContent = "Close";
-        resetSubmittedPassState();
-        await startFreshHostedPass({ preserveFinish:true, alreadyReset:true });
+        await startFreshHostedPass({ preserveFinish:true });
       }
     } catch (error) {
       setFinishStatus(`${safeString(error)}. Your notes are still here; download a recovery ZIP before leaving this page.`, "error");
@@ -1172,7 +1171,7 @@
     hosted.draftRevision = 0;
     try {
       await startHostedReview();
-      if (!options.alreadyReset) resetSubmittedPassState();
+      resetSubmittedPassState();
       hosted.submitted = false;
       persistHostedSession();
       const toolbarButton = $("[data-action=export]");
