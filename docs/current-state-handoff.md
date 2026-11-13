@@ -109,6 +109,7 @@ Never add `NEXT_PUBLIC_` to a secret.
 
 ## Database migrations
 
+- `202611130003_delivery_dispatch_cron.sql` installs the five-minute Supabase Cron safety net for queue publishes. Its bearer secret is encrypted in Vault as `qawell_delivery_dispatch_secret` and matches production `CRON_SECRET` in Vercel.
 - `202611130002_durable_delivery_queue.sql` adds the queued review state, durable per-note delivery jobs, per-screenshot delivery attempts, and an atomic worker claim. It was applied before the queue-aware application release.
 - `202611130001_durable_review_drafts.sql` adds long-lived hashed resume credentials, draft revisions, server-saved note payloads, and private screenshot metadata. It is additive and was applied to production before the matching application release.
 - `202611090001_agency_brain_attachment_delivery.sql` records screenshot attempts, successes, and non-blocking failures on each external note delivery. Agency Brain screenshots are uploaded only after the text ticket exists, using the external attachment endpoint and the same encrypted API key.

@@ -13,7 +13,7 @@ Agency Brain network calls do not run in that browser request.
 - Vercel Queues provides durable wake-ups, at-least-once delivery, delayed retries, and a private push consumer.
 - `review_delivery_jobs` in Supabase is the authoritative job ledger. A queue message may expire or be delivered more than once without losing or duplicating the underlying work.
 - Each message processes exactly one QA note. A large pass is never one long-running function invocation.
-- A five-minute production cron republishes jobs whose initial queue publish was not confirmed. Every publish has a stable idempotency key.
+- A five-minute Supabase Cron job republishes jobs whose initial queue publish was not confirmed. Every publish has a stable idempotency key.
 - A database claim function serializes provider work. This keeps Agency Brain traffic comfortably below its key-level rate limit while the product is in beta.
 
 ## Idempotency
@@ -39,5 +39,6 @@ The project dashboard includes submitted reviews in `queued`, `delivering`, `del
 - Queue topic: `qawell-review-delivery-v1`
 - Consumer: `src/app/api/queues/review-delivery/route.ts`
 - Dispatch safety net: `GET /api/internal/delivery-dispatch`
-- Production requires `CRON_SECRET`; the dispatcher fails closed when it is absent or incorrect.
+- Production requires the same random dispatcher secret in Vercel `CRON_SECRET` and Supabase Vault `qawell_delivery_dispatch_secret`; the HTTP dispatcher fails closed when either side is absent or incorrect.
 - Migration: `202611130002_durable_delivery_queue.sql`
+- Cron migration: `202611130003_delivery_dispatch_cron.sql`
