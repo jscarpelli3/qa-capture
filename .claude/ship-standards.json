@@ -1,0 +1,16 @@
+{
+  "waivers": [
+    {
+      "rule": "units",
+      "scope": "qa-capture.js",
+      "reason": "Injected widget renders inside client pages whose root font size we do not control; px keeps it stable. Mobile widget work proceeds without converting units.",
+      "approved_by": "jscarpelli3"
+    },
+    {
+      "rule": "typography",
+      "scope": "qa-capture.js",
+      "reason": "Mobile widget work proceeds without bringing legacy widget typography up to standard.",
+      "approved_by": "jscarpelli3"
+    }
+  ]
+}
