@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.16";
+  const VERSION = "0.4.17";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -10,6 +10,7 @@
   const STORAGE_KEY = `__qaCaptureSession_v1:${projectKey}`;
   const IDENTITY_KEY = `__qaCaptureIdentity_v1:${projectKey}`;
   const COMPACT_KEY = `__qaCaptureCompact_v1:${projectKey}`;
+  const DOCK_KEY = `__qaCaptureDock_v1:${projectKey}`;
   const HOSTED_KEY = `__qawellHostedSession_v1:${projectKey}`;
   const HOSTED_RECOVERY_KEY = `__qawellHostedActive_v1:${projectKey}`;
   const LEGACY_STORAGE_KEY = "__qaCaptureSession_v1";
@@ -102,6 +103,16 @@
       .move-widget { width:43px;padding:8px!important; }
       .move-widget-icon { display:block;width:24px;height:24px;font-size:22px;line-height:22px;text-align:center; }
       .outline { display:none;position:fixed;border:2px solid #a84f2f;background:#a84f2f1a;pointer-events:none; }
+      .target-bar { display:none;position:fixed;left:14px;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));max-width:420px;margin:0 auto;padding:12px;background:#e7e4da;color:#282b27;border:1px solid #282b27;box-shadow:4px 4px 0 #666b45;pointer-events:auto; }
+      .target-bar.show { display:block; }
+      .qa[data-placement^="bottom"] .target-bar { bottom:calc(72px + env(safe-area-inset-bottom)); }
+      .target-bar-label { margin:0 0 10px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+      .target-tip { margin:0 0 10px;padding:8px;border:1px solid #a84f2f;background:#ead2c8;color:#7c321c;font:12px/1.4 ui-sans-serif,system-ui,sans-serif; }
+      .target-tip[hidden] { display:none; }
+      .panel.note .target-tip { margin:8px 0 0; }
+      .target-bar-actions { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+      .target-bar-actions button { min-height:44px;border:1px solid #282b27;border-radius:0;padding:8px;background:transparent;color:#282b27;font-size:11px;font-weight:800;text-transform:uppercase; }
+      .target-bar-actions .primary { background:#282b27;color:#e7e4da; }
       .panel { display:none;position:fixed;width:min(400px,calc(100vw - 36px));max-height:calc(100vh - 100px);overflow:auto;padding:20px;background:#e7e4da;color:#282b27;border:1px solid #282b27;border-radius:0;box-shadow:9px 9px 0 #666b45;pointer-events:auto; }
       .panel.open { display:block; }
       .qa[data-placement="bottom-right"] .toolbar { right:18px;bottom:18px; }
@@ -128,7 +139,18 @@
       .target-warning.show { display:block; }
       .screenshot-drop { margin-top:6px;border:1px dashed #777b70;padding:11px;background:#d8d5ca;color:#666b45;font-size:11px; }
       .screenshot-drop.dragging { border-color:#a84f2f;background:#ead2c8; }
-      .screenshot-drop input { border:0;padding:6px 0;font-size:11px; }
+      .screenshot-drop input { position:absolute;width:1px;height:1px;opacity:0;pointer-events:none; }
+      .screenshot-buttons { display:flex;flex-wrap:wrap;gap:8px; }
+      .screenshot-buttons button { min-height:40px;border:1px solid #282b27;border-radius:0;padding:8px 11px;background:transparent;color:#282b27;font-size:11px;font-weight:800;text-transform:uppercase; }
+      .screenshot-buttons .primary { background:#282b27;color:#e7e4da; }
+      .screenshot-drop .hint { margin-top:8px;color:#666b45; }
+      .screenshot-dialog { pointer-events:auto;width:min(340px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;margin:auto;padding:20px;border:1px solid #282b27;border-radius:0;background:#e7e4da;color:#282b27;box-shadow:6px 6px 0 #666b45; }
+      .screenshot-dialog::backdrop { background:rgb(40 43 39 / .55); }
+      .screenshot-dialog p,.screenshot-dialog ol { margin:0 0 12px;font:13px/1.5 ui-sans-serif,system-ui,sans-serif; }
+      .screenshot-dialog ol { padding-left:20px; }
+      .screenshot-dialog li + li { margin-top:6px; }
+      .screenshot-dialog .actions { margin-top:16px; }
+      .field-label { display:block;margin:12px 0 6px;font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.06em; }
       .screenshot-preview { display:none;margin-top:8px;grid-template-columns:80px 1fr auto;gap:9px;align-items:center; }
       .screenshot-preview.show { display:grid; }.screenshot-preview img { width:80px;height:58px;object-fit:cover;border:1px solid #282b27; }.screenshot-preview button { border:0;border-bottom:1px solid #a84f2f;padding:2px 0;background:transparent;color:#a84f2f;font-weight:800;text-transform:uppercase; }
       .types { display:flex;flex-wrap:wrap;gap:6px; }
@@ -166,8 +188,14 @@
       .pin span { position:absolute;left:50%;top:8px;display:grid;min-width:17px;height:17px;place-items:center;transform:translateX(-50%);border:1px solid #282b27;border-radius:50%;background:#e7e4da;color:#282b27;font:bold 10px/15px ui-monospace;text-align:center; }
       .toast { display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:9px 13px;border:1px solid #282b27;border-radius:0;background:#e7e4da;color:#282b27;box-shadow:4px 4px 0 #666b45; }
       .toast.show { display:block; }
+      .safe-area-probe { position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+      .sheet-handle { display:block;width:100%;margin:-8px 0 10px;padding:6px 0 8px;border:0;background:transparent;color:#666b45;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase; }
+      .sheet-handle::before { content:"";display:block;width:40px;height:4px;margin:0 auto 6px;background:#777b70; }
+      .qa[data-aside] .panel,.qa[data-aside] .toolbar,.qa[data-aside] .pins,.qa[data-aside] .toast,.qa[data-aside] .target-bar { display:none!important; }
+      @keyframes qa-sheet-in { from { transform:translateY(100%); } to { transform:none; } }
+      @keyframes qa-sheet-out { from { transform:none; } to { transform:translateY(100%); } }
       @media (max-width:640px), (hover:none) and (pointer:coarse) {
-        .toolbar { box-shadow:4px 4px 0 #666b45; }
+        .toolbar { box-shadow:4px 4px 0 #666b45;touch-action:none; }
         .toolbar .count,.toolbar .sync-state,.toolbar [data-action="export"],.toolbar .move-widget { display:none; }
         .toolbar [data-action="select"] { width:44px;min-height:44px;padding:4px;font-size:0; }
         .toolbar [data-action="select"]::before { content:"+";font:800 23px/1 ui-sans-serif,system-ui,sans-serif; }
@@ -176,6 +204,7 @@
         .well-mark img { width:30px;height:30px; }
         .mobile-well.open { width:min(270px,calc(100vw - 28px))!important; }
         .mobile-well [data-action="toggle-compact"] { display:none; }
+        .target-warning.show { display:none; }
         .panel { width:calc(100vw - 28px);max-height:calc(100dvh - 86px);padding:16px; }
         .qa[data-placement="bottom-right"] .toolbar { right:14px;bottom:14px; }
         .qa[data-placement="bottom-right"] .panel { right:14px;bottom:66px; }
@@ -185,11 +214,25 @@
         .qa[data-placement="top-left"] .panel { left:14px;top:66px; }
         .qa[data-placement="top-right"] .toolbar { right:14px;top:14px; }
         .qa[data-placement="top-right"] .panel { right:14px;top:66px; }
+        .qa[data-placement] .panel:not(.mobile-well) { top:auto;left:0;right:0;bottom:var(--qa-keyboard,0px);width:100%;max-width:640px;margin:0 auto;max-height:min(75dvh,calc(var(--qa-visible-height,100dvh) - 12px));padding:16px 16px calc(16px + env(safe-area-inset-bottom));border-width:1px 1px 0;box-shadow:0 -4px 0 #666b45; }
+        .qa[data-placement] .panel.note { height:min(75dvh,calc(var(--qa-visible-height,100dvh) - 12px));padding-bottom:0; }
+        .panel.note .actions { position:sticky;bottom:0;margin:14px -16px 0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:#e7e4da;border-top:1px solid #777b70; }
+        .panel.open:not(.mobile-well) { animation:qa-sheet-in 220ms ease-out; }
+        .panel.note.leaving { animation:qa-sheet-out 200ms ease-in forwards; }
+        .qa[data-sheet="true"] .toolbar { display:none; }
+      }
+      @media (prefers-reduced-motion:reduce) {
+        .panel.open:not(.mobile-well),.panel.note.leaving { animation:none; }
       }
     </style>
     <div class="qa" data-placement="${state.widgetPlacement}">
       <div class="pins"></div>
       <div class="outline"></div>
+      <div class="target-bar" role="group" aria-label="Selected element">
+        <p class="target-bar-label" data-target-label role="status"></p>
+        <p class="target-tip" data-bar-tip hidden>This looks like something that can close, like a menu. Use Take screenshot in your note while it is still open.</p>
+        <div class="target-bar-actions"><button data-action="choose-different">Choose a different area</button><button class="primary" data-action="confirm-target">Make a note on this</button></div>
+      </div>
       <section class="panel setup open" aria-label="QAWELL setup">
         <h2 data-setup-heading>Start a QA review</h2>
         <div class="identity"><strong data-identity-project>Loading project…</strong><span data-identity-owner>QAWELL review utility</span><em data-identity-environment></em><em data-identity-delivery></em></div>
@@ -206,8 +249,11 @@
         <div class="actions"><button class="primary" data-action="start-new-session">Start a new QA pass</button></div>
       </section>
       <section class="panel note" aria-label="Add QA note">
+        <button type="button" class="sheet-handle" data-action="show-page">Show page</button>
         <h2>Add note</h2>
         <div class="target"></div>
+        <p class="target-tip" data-note-tip hidden>This looks like something that can close, like a menu. Use Take screenshot while it is still open.</p>
+        <p class="target-tip" data-target-closed role="status" hidden></p>
         <p class="target-warning">Large area selected. Choose a smaller element for a more precise note, or keep this selection and attach a screenshot if the larger area is intentional.</p>
         <label>Type</label>
         <div class="types" role="radiogroup" aria-label="Note type">
@@ -219,8 +265,11 @@
         </div>
         <label for="note-text">Feedback</label>
         <textarea id="note-text" placeholder="What should change?"></textarea>
-        <label for="note-screenshot">Screenshot <span class="hint">optional</span></label>
-        <div class="screenshot-drop">Paste, drop, or choose a PNG, JPEG, or WebP image. Maximum 5 MB; QAWELL removes image metadata.<input id="note-screenshot" type="file" accept="image/png,image/jpeg,image/webp"><div class="screenshot-preview"><img alt="Screenshot preview"><span data-screenshot-meta></span><button type="button" data-action="remove-screenshot">Remove</button></div></div>
+        <p class="field-label" id="screenshot-label">Screenshot <span class="hint">optional</span></p>
+        <div class="screenshot-drop" role="group" aria-labelledby="screenshot-label">
+          <div class="screenshot-buttons"><button type="button" class="primary" data-action="take-screenshot">Take screenshot</button><button type="button" data-action="attach-screenshot">Attach image</button></div>
+          <p class="hint" data-screenshot-hint></p>
+          <input id="note-screenshot" type="file" accept="image/png,image/jpeg,image/webp" tabindex="-1" aria-label="Screenshot image file"><div class="screenshot-preview"><img alt="Screenshot preview"><span data-screenshot-meta></span><button type="button" data-action="remove-screenshot">Remove</button></div></div>
         <div class="actions"><button data-action="reselect">Choose again</button><button data-action="cancel-note">Cancel</button><button class="primary" data-action="save-note">Save note</button></div>
       </section>
       <section class="panel info" aria-label="QAWELL information">
@@ -266,7 +315,18 @@
           <button data-action="move-widget">Move the well</button>
         </div>
       </section>
+      <dialog class="screenshot-dialog" aria-labelledby="screenshot-dialog-title">
+        <h2 id="screenshot-dialog-title">Take a screenshot</h2>
+        <p>Phones don't let websites take screenshots automatically, so you'll take this one yourself.</p>
+        <ol>
+          <li>Press <strong>Hide QAWELL</strong> below. If what you're commenting on has closed, reopen it. Stay on this page.</li>
+          <li>Take a screenshot with your phone's buttons.</li>
+          <li>Press the QAWELL icon to bring QAWELL back and attach your screenshot.</li>
+        </ol>
+        <div class="actions"><button type="button" data-action="close-screenshot-dialog">Cancel</button><button type="button" class="primary" data-action="hide-for-screenshot" autofocus>Hide QAWELL</button></div>
+      </dialog>
       <div class="toast" role="status"></div>
+      <div class="safe-area-probe" aria-hidden="true"></div>
     </div>`;
 
   const $ = (selector) => root.querySelector(selector);
@@ -275,8 +335,43 @@
   const mobileExport = $(".mobile-well [data-action=export]");
   const outline = $(".outline");
   const notePanel = $(".panel.note");
+  const targetBar = $(".target-bar");
+  const screenshotDialog = $(".screenshot-dialog");
+  const qa = $(".qa");
+  const sheetLayout = matchMedia("(max-width:640px), (hover:none) and (pointer:coarse)");
+
+  // The out-of-the-way marker lives in its own host so it can blend with the page
+  // (mix-blend-mode: difference inverts the white icon against whatever is behind
+  // it) without also inverting the selection highlight in the main host.
+  const markerHost = document.createElement("div");
+  markerHost.dataset.qaCaptureMarker = "";
+  markerHost.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;mix-blend-mode:difference;display:none";
+  document.documentElement.appendChild(markerHost);
+  cleanup.push(() => markerHost.remove());
+  const markerRoot = markerHost.attachShadow({ mode: "open" });
+  markerRoot.innerHTML = `
+    <style>
+      :host { all: initial; }
+      button { position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));box-sizing:border-box;width:48px;height:48px;padding:6px;border:1px solid #fff;border-radius:50%;background:transparent;cursor:pointer;pointer-events:auto;touch-action:none;animation:qa-breathe 2.4s ease-in-out infinite; }
+      button:focus-visible { outline:2px solid #fff;outline-offset:3px; }
+      img { display:block;width:100%;height:100%;object-fit:contain;filter:brightness(0) invert(1);pointer-events:none; }
+      button[data-tone="dark"] { border-color:#000; }
+      button[data-tone="dark"] img { filter:brightness(0); }
+      @keyframes qa-breathe { 0%,100% { opacity:.55;transform:scale(1); } 50% { opacity:1;transform:scale(1.08); } }
+      @media (prefers-reduced-motion:reduce) { button { animation:none;opacity:.85; } }
+    </style>
+    <button type="button" data-action="return-to-note" aria-label="Return to your note"><img src="https://qawell.dev/icon.png" alt=""></button>`;
+  const markerButton = markerRoot.querySelector("button");
+  let aside = null;
+  let markerDrag = null;
+  let markerMoved = false;
   let pendingTarget = null;
   let pendingClick = null;
+  let pendingContext = null;
+  let pendingViewport = null;
+  let candidate = null;
+  let targetWatch = null;
+  let lastTouchSelectionAt = -Infinity;
   let pendingScreenshot = null;
   let editingNoteId = null;
   let editingReviewer = false;
@@ -287,17 +382,36 @@
   syncMobileExport();
   updateWidgetPlacement();
   updateWidgetMode();
+  renderScreenshotControls();
 
-  on(root, "click", async (event) => {
-    const action = event.target.closest("[data-action]")?.dataset.action;
+  async function handleWidgetClick(event) {
+    const origin = event.composedPath()[0];
+    if (!(origin instanceof Element)) return;
+    // A tap on the dialog's backdrop lands on the dialog element itself.
+    if (origin === screenshotDialog) {
+      const box = screenshotDialog.getBoundingClientRect();
+      const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+      if (outside) closeScreenshotDialog();
+      return;
+    }
+    const action = origin.closest("[data-action]")?.dataset.action;
     if (!action) return;
+    if (dockMoved && origin.closest(".toolbar")) { dockMoved = false; return; }
     if (action === "start") await startReview();
-    if (action === "continue-draft") await continueDraft(event.target.closest("[data-review-id]")?.dataset.reviewId, false);
-    if (action === "submit-draft") await continueDraft(event.target.closest("[data-review-id]")?.dataset.reviewId, true);
-    if (action === "discard-draft") await discardDraft(event.target.closest("[data-review-id]")?.dataset.reviewId);
+    if (action === "continue-draft") await continueDraft(origin.closest("[data-review-id]")?.dataset.reviewId, false);
+    if (action === "submit-draft") await continueDraft(origin.closest("[data-review-id]")?.dataset.reviewId, true);
+    if (action === "discard-draft") await discardDraft(origin.closest("[data-review-id]")?.dataset.reviewId);
     if (action === "start-new-session") startNewSessionFromChooser();
     if (action === "dismiss-setup") await dismissReviewerSetup();
     if (action === "select") toggleSelection();
+    if (action === "confirm-target") confirmCandidate();
+    if (action === "choose-different") chooseDifferentArea();
+    if (action === "show-page") stepAside("reference");
+    if (action === "return-to-note") { if (markerMoved) markerMoved = false; else returnFromAside(); }
+    if (action === "take-screenshot") takeScreenshot();
+    if (action === "attach-screenshot") $("#note-screenshot").click();
+    if (action === "close-screenshot-dialog") closeScreenshotDialog();
+    if (action === "hide-for-screenshot") { closeScreenshotDialog(); stepAside("screenshot"); }
     if (action === "reselect") reselectTarget();
     if (action === "cancel-note") closeNote();
     if (action === "save-note") await saveNote();
@@ -312,8 +426,8 @@
     if (action === "download-and-switch") { await exportZip(true); await beginInvitedReview(); }
     if (action === "start-invite") await beginInvitedReview();
     if (action === "list") renderNotesPanel();
-    if (action === "view-note") renderNotesPanel(event.target.closest("[data-note-id]")?.dataset.noteId);
-    if (action === "edit-note") editNote(event.target.closest("[data-note-id]")?.dataset.noteId);
+    if (action === "view-note") renderNotesPanel(origin.closest("[data-note-id]")?.dataset.noteId);
+    if (action === "edit-note") editNote(origin.closest("[data-note-id]")?.dataset.noteId);
     if (action === "close-notes") openPanel(null);
     if (action === "well") openWell();
     if (action === "toggle-compact") toggleCompactMode();
@@ -321,12 +435,41 @@
     if (action === "info") openPanel("info");
     if (action === "close-info") openPanel(null);
     if (action === "destroy") destroy();
-  });
+  }
 
+  // Page code must never see interaction with the widget: a tap on QAWELL would
+  // otherwise count as an "outside click" and close the menu being reviewed.
+  // While targeting, page taps are swallowed so they select instead of activate.
+  // Window capture runs before document and element listeners; listeners the page
+  // registered on window capture before QAWELL loaded still run first.
+  const PAGE_INTERCEPTED_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "touchstart", "touchend", "click", "dblclick"];
+  // wheel and touchmove are shielded so page scroll locks (react-remove-scroll,
+  // body-scroll-lock) cannot stop the widget's own panels from scrolling.
+  const WIDGET_SHIELDED_EVENTS = [...PAGE_INTERCEPTED_EVENTS, "keydown", "keyup", "keypress", "focus", "focusin", "wheel", "touchmove"];
+  const PASSIVE_EVENTS = new Set(["touchstart", "touchmove", "wheel"]);
+  for (const type of WIDGET_SHIELDED_EVENTS) on(window, type, routeInteraction, PASSIVE_EVENTS.has(type) ? { capture:true, passive:true } : true);
+  on(window, "focusout", shieldFocusLoss, true);
+  on(window, "blur", shieldFocusLoss, true);
   on(document, "pointermove", handlePointerMove, true);
-  on(document, "click", handlePageClick, true);
+  on(markerButton, "pointermove", dragMarker);
+  on(markerButton, "pointercancel", () => { markerDrag = null; });
+  if (window.visualViewport) {
+    on(visualViewport, "resize", updateViewportInsets);
+    on(visualViewport, "scroll", updateViewportInsets);
+    updateViewportInsets();
+  }
   on(window, "scroll", refreshOverlay, true);
   on(window, "resize", refreshOverlay);
+  on(window, "resize", applyDockPosition);
+  on(toolbar, "pointermove", dragDock);
+  on(toolbar, "pointercancel", () => { dockDrag = null; });
+  if (typeof sheetLayout.addEventListener === "function") on(sheetLayout, "change", applyDockPosition);
+  else { sheetLayout.addListener?.(applyDockPosition); cleanup.push(() => sheetLayout.removeListener?.(applyDockPosition)); }
+  if (window.ResizeObserver) {
+    const dockResizeObserver = new ResizeObserver(() => applyDockPosition());
+    dockResizeObserver.observe(toolbar);
+    cleanup.push(() => dockResizeObserver.disconnect());
+  }
   on($("#note-screenshot"), "change", async (event) => { const file = event.target.files?.[0]; if (file) await prepareScreenshot(file); });
   on(notePanel, "paste", async (event) => { const file = Array.from(event.clipboardData?.files || []).find((item) => item.type.startsWith("image/")); if (file) { event.preventDefault(); await prepareScreenshot(file); } });
   on($(".screenshot-drop"), "dragover", (event) => { event.preventDefault(); $(".screenshot-drop").classList.add("dragging"); });
@@ -636,6 +779,7 @@
   }
 
   function beginAddingNote() {
+    if (aside) leaveAside();
     if (hosted.submitted) {
       openPanel("finish");
       toast("Start a fresh QA pass before adding another note");
@@ -664,31 +808,415 @@
     $("[data-action=select]").classList.toggle("active", state.selecting);
     $("[data-action=select]").textContent = state.selecting ? "Cancel selection" : "＋ Add note";
     $("[data-action=select]").setAttribute("aria-label", state.selecting ? "Cancel note selection" : "Add a QA note");
-    if (!state.selecting) {
-      state.hovered = null;
-      outline.style.display = "none";
+    if (!state.selecting) clearCandidate();
+  }
+
+  function routeInteraction(event) {
+    if (event.target === host || event.target === markerHost) {
+      event.stopImmediatePropagation();
+      if (event.type === "click") void handleWidgetClick(event);
+      if (event.type === "pointerdown" || event.type === "pointerup") {
+        if (event.target === markerHost) handleMarkerPointer(event);
+        else handleDockPointer(event);
+      }
+      return;
+    }
+    if (!PAGE_INTERCEPTED_EVENTS.includes(event.type)) return;
+    // Screenshot mode leaves the page usable so a closed menu can be reopened.
+    if (aside === "reference") blockPageEvent(event);
+    else if (aside) return;
+    else if (state.selecting) interceptPageEvent(event);
+  }
+
+  // Focus moving into the widget must not look like focus leaving the page's menu.
+  function shieldFocusLoss(event) {
+    if (event.relatedTarget === host || event.relatedTarget === markerHost) event.stopImmediatePropagation();
+  }
+
+  // While the widget is out of the way the page can be scrolled and zoomed but not
+  // activated, so a stray tap cannot navigate away from an unsaved note.
+  function blockPageEvent(event) {
+    event.stopImmediatePropagation();
+    if (event.type !== "pointerdown" && event.type !== "touchstart" && event.cancelable) event.preventDefault();
+  }
+
+  let steppingAside = false;
+  function stepAside(mode) {
+    if (aside || steppingAside) return;
+    steppingAside = true;
+    markerButton.setAttribute("aria-label", mode === "screenshot" ? "Return to your note and attach your screenshot" : "Return to your note");
+    const finish = () => {
+      steppingAside = false;
+      notePanel.classList.remove("leaving");
+      // The note was saved or cancelled during the slide-out animation.
+      if (!notePanel.classList.contains("open")) return;
+      aside = mode;
+      qa.dataset.aside = aside;
+      markerHost.style.display = "block";
+      clampMarker();
+      updateMarkerTone();
+      syncHighlight();
+      markerButton.focus({ preventScroll:true });
+    };
+    if (!sheetLayout.matches || matchMedia("(prefers-reduced-motion: reduce)").matches) { finish(); return; }
+    let finished = false;
+    const finishOnce = () => { if (!finished) { finished = true; finish(); } };
+    notePanel.classList.add("leaving");
+    notePanel.addEventListener("animationend", finishOnce, { once:true });
+    setTimeout(finishOnce, 400);
+  }
+
+  function leaveAside() {
+    aside = null;
+    delete qa.dataset.aside;
+    markerHost.style.display = "none";
+    syncHighlight();
+  }
+
+  function returnFromAside() {
+    if (!aside) return;
+    const returningFromScreenshot = aside === "screenshot";
+    leaveAside();
+    if (!returningFromScreenshot) { $("[data-action=show-page]").focus({ preventScroll:true }); return; }
+    // The tap on the marker is a user gesture, so the photo picker can open directly.
+    const attach = $("[data-action=attach-screenshot]");
+    attach.textContent = "Attach your screenshot";
+    attach.classList.add("primary");
+    $("[data-action=take-screenshot]").classList.remove("primary");
+    attach.focus({ preventScroll:true });
+    $("#note-screenshot").click();
+  }
+
+  // Desktop browsers can capture the tab through screen sharing, with the
+  // reviewer's permission each time. Mobile browsers cannot, so phones use the
+  // device's own screenshot buttons while QAWELL steps aside.
+  function isTouchPrimary() {
+    return matchMedia("(hover:none) and (pointer:coarse)").matches;
+  }
+
+  // getDisplayMedia exists only in secure (HTTPS) contexts on desktop browsers, and
+  // only Chromium browsers (which expose userAgentData) can share a single tab.
+  // Elsewhere the reviewer would have to share a whole window or screen.
+  function canCaptureScreen() {
+    return typeof navigator.mediaDevices?.getDisplayMedia === "function" && "userAgentData" in navigator && !isTouchPrimary();
+  }
+
+  function renderScreenshotControls() {
+    const attach = $("[data-action=attach-screenshot]");
+    attach.textContent = "Attach image";
+    attach.classList.remove("primary");
+    $("[data-action=take-screenshot]").classList.add("primary");
+    closeScreenshotDialog();
+    const capture = canCaptureScreen();
+    const touch = isTouchPrimary();
+    $("[data-action=take-screenshot]").hidden = !capture && !touch;
+    if (!capture && !touch) attach.classList.add("primary");
+    $("[data-screenshot-hint]").textContent = capture
+      ? "Take screenshot captures this tab; your browser asks permission each time. You can also attach, paste, or drop a PNG, JPEG, or WebP image up to 5 MB. QAWELL removes image metadata."
+      : touch
+        ? "Take screenshot moves QAWELL out of the way so you can use your phone's screenshot buttons. Images up to 5 MB; QAWELL removes image metadata."
+        : "Attach, paste, or drop a PNG, JPEG, or WebP image up to 5 MB. QAWELL removes image metadata.";
+  }
+
+  function takeScreenshot() {
+    if (canCaptureScreen()) void captureTab();
+    else openScreenshotDialog();
+  }
+
+  // iOS Safari before 15.4 has no HTMLDialogElement methods; fall back to the attribute.
+  function openScreenshotDialog() {
+    if (typeof screenshotDialog.showModal === "function") screenshotDialog.showModal();
+    else screenshotDialog.setAttribute("open", "");
+  }
+
+  function closeScreenshotDialog() {
+    if (!screenshotDialog.hasAttribute("open")) return;
+    if (typeof screenshotDialog.close === "function") screenshotDialog.close();
+    else screenshotDialog.removeAttribute("open");
+  }
+
+  let capturingTab = false;
+  async function captureTab() {
+    if (capturingTab) return;
+    capturingTab = true;
+    host.style.visibility = "hidden";
+    let stream = null;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video:{ displaySurface:"browser" },
+        audio:false,
+        preferCurrentTab:true,
+        selfBrowserSurface:"include",
+        surfaceSwitching:"exclude",
+        systemAudio:"exclude",
+      });
+      const surface = stream.getVideoTracks()[0]?.getSettings?.().displaySurface;
+      if (surface && surface !== "browser") throw Object.assign(new Error("Only a browser tab can be captured"), { name:"NotTabError" });
+      const blob = await grabFrame(stream);
+      stream.getTracks().forEach((track) => track.stop());
+      host.style.visibility = "";
+      await prepareScreenshot(new File([blob], "screenshot.jpg", { type:"image/jpeg" }));
+    } catch (error) {
+      toast(error?.name === "NotAllowedError" ? "Screenshot cancelled" : error?.name === "NotTabError" ? "Choose this tab to take a screenshot" : "Could not take a screenshot");
+    } finally {
+      stream?.getTracks().forEach((track) => track.stop());
+      host.style.visibility = "";
+      capturingTab = false;
     }
   }
 
+  function withTimeout(promise, ms) {
+    let timer;
+    return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Timed out")), ms); })]).finally(() => clearTimeout(timer));
+  }
+
+  async function grabFrame(stream) {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = stream;
+    await withTimeout(video.play(), 4000);
+    if (!video.videoWidth) await withTimeout(new Promise((resolve) => video.addEventListener("loadedmetadata", resolve, { once:true })), 2000);
+    // Give the page a moment to repaint without the widget before the frame is taken.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    if (!video.videoWidth || !video.videoHeight) throw new Error("The shared tab produced no image");
+    const scale = Math.min(1, 2560 / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    video.pause();
+    video.srcObject = null;
+    return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not read the screenshot")), "image/jpeg", .92));
+  }
+
+  function handleMarkerPointer(event) {
+    if (event.type === "pointerup") { markerDrag = null; return; }
+    const rect = markerButton.getBoundingClientRect();
+    markerDrag = { id:event.pointerId, x:event.clientX, y:event.clientY, left:rect.left, top:rect.top };
+    markerMoved = false;
+    markerButton.setPointerCapture?.(event.pointerId);
+  }
+
+  function dragMarker(event) {
+    if (!markerDrag || event.pointerId !== markerDrag.id) return;
+    const dx = event.clientX - markerDrag.x;
+    const dy = event.clientY - markerDrag.y;
+    if (!markerMoved && Math.hypot(dx, dy) < 8) return;
+    markerMoved = true;
+    const size = markerButton.offsetWidth;
+    const left = Math.min(Math.max(0, markerDrag.left + dx), innerWidth - size);
+    const top = Math.min(Math.max(0, markerDrag.top + dy), innerHeight - size);
+    Object.assign(markerButton.style, { left:`${left}px`, top:`${top}px`, right:"auto", bottom:"auto" });
+    updateMarkerTone();
+  }
+
+  // A dragged marker keeps pixel coordinates; pull it back on screen after a
+  // rotation or resize so the reviewer can always get back to the note.
+  function clampMarker() {
+    if (!markerButton.style.left) return;
+    // The pulse scales the icon up 8%, so keep a few pixels of room at each edge.
+    const size = (markerButton.offsetWidth || 48) + 4;
+    const left = Math.min(Math.max(4, parseFloat(markerButton.style.left) || 0), Math.max(4, innerWidth - size));
+    const top = Math.min(Math.max(4, parseFloat(markerButton.style.top) || 0), Math.max(4, innerHeight - size));
+    Object.assign(markerButton.style, { left:`${left}px`, top:`${top}px` });
+  }
+
+  let markerToneFrame = 0;
+  function scheduleMarkerTone() {
+    if (!aside || markerToneFrame) return;
+    markerToneFrame = requestAnimationFrame(() => { markerToneFrame = 0; updateMarkerTone(); });
+  }
+
+  // Blending inverts the icon against painted elements, but WebKit does not blend
+  // with the page canvas (the background a site sets on html or body). Over the
+  // canvas the marker switches to a solid icon chosen for contrast with it.
+  function updateMarkerTone() {
+    if (!aside) return;
+    const rect = markerButton.getBoundingClientRect();
+    const stack = document.elementsFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      .filter((element) => element !== host && element !== markerHost);
+    const painted = stack.find((element) => {
+      const styles = getComputedStyle(element);
+      return parseAlpha(styles.backgroundColor) > 0 || styles.backgroundImage !== "none";
+    });
+    const html = document.documentElement;
+    const onCanvas = !painted || painted === html || (painted === document.body && parseAlpha(getComputedStyle(html).backgroundColor) === 0);
+    if (!onCanvas) {
+      markerHost.style.mixBlendMode = "difference";
+      markerButton.dataset.tone = "invert";
+      return;
+    }
+    const canvasColor = painted ? getComputedStyle(painted).backgroundColor : "";
+    const color = parseAlpha(canvasColor || "transparent") > 0 ? canvasColor : "rgb(255, 255, 255)";
+    markerHost.style.mixBlendMode = "normal";
+    markerButton.dataset.tone = relativeLuminance(color) > 0.4 ? "dark" : "light";
+  }
+
+  // Computed colours may be oklch(), color(srgb …), or rgb(); painting one pixel
+  // lets the browser convert any of them to sRGB.
+  let colorProbe = null;
+  function toRgba(color) {
+    if (!color || color === "transparent" || color === "rgba(0, 0, 0, 0)") return [0, 0, 0, 0];
+    if (!colorProbe) colorProbe = Object.assign(document.createElement("canvas"), { width:1, height:1 }).getContext("2d", { willReadFrequently:true });
+    colorProbe.clearRect(0, 0, 1, 1);
+    colorProbe.fillStyle = "#fff";
+    colorProbe.fillStyle = color;
+    colorProbe.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = colorProbe.getImageData(0, 0, 1, 1).data;
+    return [r, g, b, a / 255];
+  }
+
+  function parseAlpha(color) {
+    return toRgba(color)[3];
+  }
+
+  function relativeLuminance(color) {
+    const [r, g, b] = toRgba(color).slice(0, 3).map((value) => {
+      const channel = value / 255;
+      return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  // Keeps bottom sheets above the on-screen keyboard. iOS and Android shrink the
+  // visual viewport rather than the layout viewport that fixed elements use.
+  function updateViewportInsets() {
+    const vv = window.visualViewport;
+    const keyboard = vv.scale > 1.01 ? 0 : Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+    qa.style.setProperty("--qa-keyboard", `${keyboard}px`);
+    qa.style.setProperty("--qa-visible-height", `${Math.round(vv.height)}px`);
+  }
+
+  function highlightedElement() {
+    if (state.selecting) return state.hovered;
+    if (!pendingTarget?.isConnected) return null;
+    if (aside) return aside === "reference" ? pendingTarget : null;
+    if (sheetLayout.matches && notePanel.classList.contains("open")) return pendingTarget;
+    return null;
+  }
+
+  function syncHighlight() {
+    const element = highlightedElement();
+    if (isElementVisible(element)) drawOutline(element);
+    else outline.style.display = "none";
+  }
+
+  function interceptPageEvent(event) {
+    event.stopImmediatePropagation();
+    if (event.type === "pointerup" && (event.pointerType === "touch" || event.pointerType === "pen")) {
+      selectCandidate(event);
+      return;
+    }
+    // touchstart and pointerdown keep their defaults so the page can still scroll.
+    if (event.type === "pointerdown" || event.type === "touchstart") return;
+    if (event.cancelable) event.preventDefault();
+    if (event.type !== "click") return;
+    // A touch tap was already handled on pointerup; ignore its compatibility click.
+    if (performance.now() - lastTouchSelectionAt < 800) return;
+    openNoteFor(captureSelection(event, event.target));
+  }
+
   function handlePointerMove(event) {
-    if (!state.selecting || host.contains(event.target)) return;
+    if (!state.selecting || candidate || event.pointerType === "touch" || host.contains(event.target)) return;
     state.hovered = event.target;
     drawOutline(event.target);
   }
 
-  function handlePageClick(event) {
-    if (!state.selecting || host.contains(event.target)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    pendingTarget = event.target;
-    pendingClick = captureClickContext(event, pendingTarget);
+  // Context is recorded at selection time so a note stays complete even if the
+  // selected element (an open menu, for example) closes before the note is saved.
+  function captureSelection(event, target) {
+    const click = captureClickContext(event, target);
+    return { target, click, context:captureElement(target, click), viewport:captureViewport(), mayClose:looksCloseable(target) };
+  }
+
+  const CLOSEABLE_ROLES = new Set(["menu", "listbox", "dialog", "alertdialog", "tooltip"]);
+  const CLOSEABLE_CLASS = /dropdown|drawer|popover|popup|modal|flyout|offcanvas|mega-?menu|sub-?menu|accordion|collapse/i;
+
+  // A prediction, not a guarantee: sites that do not mark up their menus are missed,
+  // which is why the selected element is also watched while the note is written.
+  function looksCloseable(element) {
+    for (let node = element; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
+      if (node.matches("details[open], dialog[open]")) return true;
+      if (CLOSEABLE_ROLES.has(node.getAttribute("role"))) return true;
+      if (node.id && document.querySelector(`[aria-controls~="${CSS.escape(node.id)}"][aria-expanded="true"]`)) return true;
+      const position = getComputedStyle(node).position;
+      if (CLOSEABLE_CLASS.test(`${node.id} ${node.getAttribute("class") || ""}`) && (position === "fixed" || position === "absolute" || node.matches("[aria-expanded], [aria-hidden], .show, .open, .is-open, .active, .expanded"))) return true;
+    }
+    return false;
+  }
+
+  function isElementVisible(element) {
+    if (!element?.isConnected) return false;
+    if (typeof element.checkVisibility === "function" && !element.checkVisibility({ opacityProperty:true, visibilityProperty:true })) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  function watchPendingTarget() {
+    stopWatchingTarget();
+    targetWatch = setInterval(() => {
+      const closed = !isElementVisible(pendingTarget);
+      const message = $("[data-target-closed]");
+      if (message.hidden === !closed) return;
+      message.textContent = closed
+        ? isTouchPrimary()
+          ? "What you selected has closed or is no longer visible. Your note is still attached to it. To show it open, tap Take screenshot and follow the steps."
+          : "What you selected has closed or is no longer visible. Your note is still attached to it. To show it open, reopen it on the page, then take or attach a screenshot."
+        : "";
+      message.hidden = !closed;
+      syncHighlight();
+    }, 400);
+  }
+
+  function stopWatchingTarget() {
+    clearInterval(targetWatch);
+    targetWatch = null;
+    $("[data-target-closed]").hidden = true;
+  }
+
+  function selectCandidate(event) {
+    lastTouchSelectionAt = performance.now();
+    candidate = { ...captureSelection(event, event.target), viaTouch:true };
+    $("[data-bar-tip]").hidden = !candidate.mayClose;
+    state.hovered = candidate.target;
+    drawOutline(candidate.target);
+    $("[data-target-label]").textContent = `Selected: ${describeElement(candidate.target)}`;
+    $(".toast").classList.remove("show");
+    targetBar.classList.add("show");
+  }
+
+  function clearCandidate() {
+    candidate = null;
+    state.hovered = null;
+    outline.style.display = "none";
+    targetBar.classList.remove("show");
+  }
+
+  function chooseDifferentArea() {
+    clearCandidate();
+    toast("Tap another area");
+  }
+
+  function confirmCandidate() {
+    if (!candidate) return;
+    openNoteFor(candidate);
+  }
+
+  function openNoteFor(selection) {
+    pendingTarget = selection.target;
+    pendingClick = selection.click;
+    pendingContext = selection.context;
+    pendingViewport = selection.viewport;
     editingNoteId = null;
     toggleSelection(false);
     setNoteEditorMode(false);
     renderPendingTarget();
+    $("[data-note-tip]").hidden = !selection.mayClose || Boolean(selection.viaTouch);
+    watchPendingTarget();
     $("#note-text").value = "";
     clearPendingScreenshot();
+    renderScreenshotControls();
     openPanel("note");
     $("#note-text").focus();
   }
@@ -724,7 +1252,7 @@
       return;
     }
     const id = makeId("note");
-    const context = captureElement(pendingTarget, pendingClick);
+    const context = pendingContext || captureElement(pendingTarget, pendingClick);
     const note = {
       id,
       sequence: state.notes.length + 1,
@@ -733,7 +1261,7 @@
       text,
       page: capturePage(),
       target: context,
-      viewport: captureViewport(),
+      viewport: pendingViewport || captureViewport(),
       diagnostics: {
         consoleErrors: state.errors.slice(-20),
         failedRequests: state.failedRequests.slice(-20),
@@ -810,8 +1338,13 @@
   function resetNoteEditor() {
     pendingTarget = null;
     pendingClick = null;
+    pendingContext = null;
+    pendingViewport = null;
     editingNoteId = null;
     clearPendingScreenshot();
+    renderScreenshotControls();
+    stopWatchingTarget();
+    $("[data-note-tip]").hidden = true;
     $(".target-warning").classList.remove("show");
     setNoteEditorMode(false);
   }
@@ -1545,12 +2078,13 @@
   }
 
   function refreshOverlay() {
-    if (state.selecting && state.hovered?.isConnected) drawOutline(state.hovered);
+    syncHighlight();
+    if (aside) { clampMarker(); scheduleMarkerTone(); }
     if (state.notes.length) updatePins();
   }
 
   function renderPendingTarget() {
-    const rect = pendingTarget.getBoundingClientRect();
+    const rect = pendingContext?.rect?.viewport || pendingTarget.getBoundingClientRect();
     $(".target").textContent = `${describeElement(pendingTarget)} · ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
     const viewportArea = Math.max(1, innerWidth * innerHeight);
     const selectedArea = Math.max(0, rect.width * rect.height);
@@ -1633,8 +2167,11 @@
   }
 
   function openPanel(name) {
+    if (name !== "note") stopWatchingTarget();
     for (const panel of root.querySelectorAll(".panel")) panel.classList.remove("open");
     if (name) $(`.panel.${name}`)?.classList.add("open");
+    qa.dataset.sheet = String(Boolean(name) && name !== "mobile-well");
+    syncHighlight();
     $("[data-action=well]").setAttribute("aria-expanded", name === "mobile-well" ? "true" : "false");
   }
 
@@ -1666,7 +2203,113 @@
     mobileExport.disabled = toolbarExport.disabled;
   }
 
+  // On phones the dock can be dragged anywhere. Its position is stored as a
+  // fraction of the usable area so it survives rotation and resizing. The Move
+  // the well control remains the keyboard alternative and returns it to a corner.
+  let dockPosition = readDockPosition();
+  let dockDrag = null;
+  let dockMoved = false;
+
+  function readDockPosition() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DOCK_KEY) || "null");
+      return Number.isFinite(saved?.x) && Number.isFinite(saved?.y) ? { x:clamp01(saved.x), y:clamp01(saved.y) } : null;
+    } catch { return null; }
+  }
+
+  function saveDockPosition() {
+    try {
+      if (dockPosition) localStorage.setItem(DOCK_KEY, JSON.stringify(dockPosition));
+      else localStorage.removeItem(DOCK_KEY);
+    } catch (error) { console.warn("QAWELL could not remember the widget position.", error); }
+  }
+
+  function clamp01(value) {
+    return Math.min(1, Math.max(0, value));
+  }
+
+  function dockBounds(rect) {
+    const probe = getComputedStyle($(".safe-area-probe"));
+    const inset = (side) => parseFloat(probe[`padding${side}`]) || 0;
+    const margin = 8;
+    const minX = inset("Left") + margin;
+    const minY = inset("Top") + margin;
+    return { minX, minY, maxX:Math.max(minX, innerWidth - inset("Right") - margin - rect.width), maxY:Math.max(minY, innerHeight - inset("Bottom") - margin - rect.height) };
+  }
+
+  function handleDockPointer(event) {
+    if (event.type === "pointerup") {
+      if (dockDrag && dockMoved) finishDockDrag();
+      dockDrag = null;
+      return;
+    }
+    const origin = event.composedPath()[0];
+    if (!(origin instanceof Element) || !origin.closest(".toolbar")) return;
+    dockMoved = false;
+    if (!sheetLayout.matches || event.pointerType === "mouse") return;
+    const rect = toolbar.getBoundingClientRect();
+    dockDrag = { id:event.pointerId, x:event.clientX, y:event.clientY, left:rect.left, top:rect.top };
+  }
+
+  function finishDockDrag() {
+    const nearest = `${dockPosition.y > .5 ? "bottom" : "top"}-${dockPosition.x > .5 ? "right" : "left"}`;
+    if (nearest !== state.widgetPlacement) {
+      state.widgetPlacement = nearest;
+      updateWidgetPlacement();
+      persistSession();
+    }
+    saveDockPosition();
+  }
+
+  function dragDock(event) {
+    if (!dockDrag || event.pointerId !== dockDrag.id) return;
+    const dx = event.clientX - dockDrag.x;
+    const dy = event.clientY - dockDrag.y;
+    if (!dockMoved) {
+      if (Math.hypot(dx, dy) < 8) return;
+      dockMoved = true;
+      toolbar.setPointerCapture?.(event.pointerId);
+      openPanel(null);
+    }
+    const rect = toolbar.getBoundingClientRect();
+    const bounds = dockBounds(rect);
+    const left = Math.min(Math.max(bounds.minX, dockDrag.left + dx), bounds.maxX);
+    const top = Math.min(Math.max(bounds.minY, dockDrag.top + dy), bounds.maxY);
+    dockPosition = {
+      x:bounds.maxX > bounds.minX ? (left - bounds.minX) / (bounds.maxX - bounds.minX) : 0,
+      y:bounds.maxY > bounds.minY ? (top - bounds.minY) / (bounds.maxY - bounds.minY) : 0,
+    };
+    applyDockPosition();
+  }
+
+  function applyDockPosition() {
+    const well = $(".panel.mobile-well");
+    const reset = { left:"", top:"", right:"", bottom:"" };
+    const rect = toolbar.getBoundingClientRect();
+    if (!dockPosition || !sheetLayout.matches || !rect.width) {
+      Object.assign(toolbar.style, reset);
+      Object.assign(well.style, reset);
+      return;
+    }
+    const bounds = dockBounds(rect);
+    const left = bounds.minX + dockPosition.x * (bounds.maxX - bounds.minX);
+    const top = bounds.minY + dockPosition.y * (bounds.maxY - bounds.minY);
+    Object.assign(toolbar.style, { left:`${left}px`, top:`${top}px`, right:"auto", bottom:"auto" });
+    // Keep the review controls menu attached to the dock wherever it sits.
+    const below = top + rect.height / 2 < innerHeight / 2;
+    const alignRight = left + rect.width / 2 > innerWidth / 2;
+    Object.assign(well.style, {
+      top:below ? `${top + rect.height + 8}px` : "auto",
+      bottom:below ? "auto" : `${innerHeight - top + 8}px`,
+      left:alignRight ? "auto" : `${left}px`,
+      right:alignRight ? `${innerWidth - left - rect.width}px` : "auto",
+    });
+  }
+
   function moveWidget() {
+    dockPosition = null;
+    saveDockPosition();
+    applyDockPosition();
     const currentIndex = WIDGET_PLACEMENTS.indexOf(state.widgetPlacement);
     state.widgetPlacement = WIDGET_PLACEMENTS[(currentIndex + 1) % WIDGET_PLACEMENTS.length];
     updateWidgetPlacement();
@@ -1695,6 +2338,7 @@
 
   function destroy() {
     toggleSelection(false);
+    stopWatchingTarget();
     for (const fn of cleanup.reverse()) fn();
     host.remove();
     delete window[GLOBAL_KEY];
