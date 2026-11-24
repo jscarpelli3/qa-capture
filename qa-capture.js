@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.4.17";
+  const VERSION = "0.4.18";
   const SCHEMA = "qa-review/1";
   const INTEGRATION_NOTE_LIMIT = 25;
   const GLOBAL_KEY = "__qaCapture";
@@ -10,6 +10,7 @@
   const STORAGE_KEY = `__qaCaptureSession_v1:${projectKey}`;
   const IDENTITY_KEY = `__qaCaptureIdentity_v1:${projectKey}`;
   const COMPACT_KEY = `__qaCaptureCompact_v1:${projectKey}`;
+  const HIDDEN_KEY = `__qaCaptureHidden_v1:${projectKey}`;
   const DOCK_KEY = `__qaCaptureDock_v1:${projectKey}`;
   const HOSTED_KEY = `__qawellHostedSession_v1:${projectKey}`;
   const HOSTED_RECOVERY_KEY = `__qawellHostedActive_v1:${projectKey}`;
@@ -55,6 +56,7 @@
     assets: [],
     widgetPlacement: WIDGET_PLACEMENTS[0],
     widgetCompact: false,
+    widgetHidden: false,
   };
   restoreSession();
 
@@ -100,6 +102,15 @@
       .qa[data-compact="true"] .toolbar [data-action="select"]::before { content:"+";font:800 23px/1 ui-sans-serif,system-ui,sans-serif; }
       .qa[data-compact="true"] .toolbar [data-action="select"].active::before { content:"×"; }
       .qa[data-compact="true"] .well-mark { width:44px;min-height:44px!important; }
+      .hide-widget { width:42px;padding:8px!important;font-size:19px!important;line-height:1; }
+      .restore-widget { display:none;position:fixed;width:46px;height:46px;border:1px solid #282b27;padding:6px;background:#e7e4da;box-shadow:4px 4px 0 #666b45;pointer-events:auto; }
+      .restore-widget img { display:block;width:100%;height:100%;object-fit:contain; }
+      .qa[data-hidden="true"] .pins,.qa[data-hidden="true"] .outline,.qa[data-hidden="true"] .target-bar,.qa[data-hidden="true"] .panel,.qa[data-hidden="true"] .toolbar,.qa[data-hidden="true"] .screenshot-dialog,.qa[data-hidden="true"] .toast { display:none!important; }
+      .qa[data-hidden="true"] .restore-widget { display:grid;place-items:center; }
+      .qa[data-placement="bottom-right"] .restore-widget { right:18px;bottom:18px; }
+      .qa[data-placement="bottom-left"] .restore-widget { left:18px;bottom:18px; }
+      .qa[data-placement="top-left"] .restore-widget { left:18px;top:18px; }
+      .qa[data-placement="top-right"] .restore-widget { right:18px;top:18px; }
       .move-widget { width:43px;padding:8px!important; }
       .move-widget-icon { display:block;width:24px;height:24px;font-size:22px;line-height:22px;text-align:center; }
       .outline { display:none;position:fixed;border:2px solid #a84f2f;background:#a84f2f1a;pointer-events:none; }
@@ -128,7 +139,7 @@
       input, textarea { width:100%;border:0;border-bottom:1px solid #282b27;border-radius:0;padding:10px 2px;color:#282b27;background:transparent;outline:none; }
       input:focus, textarea:focus { border-color:#a84f2f;box-shadow:0 2px 0 #a84f2f; }
       textarea { min-height:96px;resize:vertical; }
-      .actions { display:flex;justify-content:flex-end;gap:8px;margin-top:14px; }
+      .actions { display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:14px; }
       .actions button { border:1px solid #282b27;border-radius:0;padding:8px 11px;background:transparent;color:#282b27;text-transform:uppercase;font-weight:800;font-size:11px; }
       .actions .primary { background:#282b27;color:#e7e4da; }
       .hint { margin:8px 0 0;color:#777b70;font-size:11px; }
@@ -239,7 +250,7 @@
         <label for="reviewer">Your name</label>
         <input id="reviewer" autocomplete="name" placeholder="Bob Sacamano">
         <p class="hint">Stored only in the review data you download.</p>
-        <div class="actions"><button data-action="dismiss-setup">Skip for now</button><button class="primary" data-action="start">Start review</button></div>
+        <div class="actions"><button data-action="hide-widget">Hide QAWELL</button><button data-action="dismiss-setup">Skip for now</button><button class="primary" data-action="start">Start review</button></div>
       </section>
       <section class="panel draft-chooser" aria-label="Unsubmitted QA sessions">
         <h2>Unsubmitted QA sessions</h2>
@@ -303,6 +314,7 @@
         <span class="sync-state" data-sync-status data-state="local">Saved locally</span>
         <button data-action="export">Export ZIP</button>
         <button class="move-widget" data-action="move-widget" title="Move widget" aria-label="Move widget"><span class="move-widget-icon" aria-hidden="true"></span></button>
+        <button class="hide-widget" data-action="hide-widget" title="Hide QAWELL" aria-label="Hide QAWELL">−</button>
       </div>
       <section class="panel mobile-well" aria-label="QAWELL review controls">
         <div class="mobile-well-header"><img src="https://qawell.dev/icon.png" alt=""><div><strong>QAWELL</strong><span data-mobile-count>No notes yet</span><span data-sync-status data-state="local">Saved locally</span></div></div>
@@ -313,6 +325,7 @@
           <button data-action="toggle-compact">Minimize widget</button>
           <button data-action="info">About this review</button>
           <button data-action="move-widget">Move the well</button>
+          <button data-action="hide-widget">Hide QAWELL</button>
         </div>
       </section>
       <dialog class="screenshot-dialog" aria-labelledby="screenshot-dialog-title">
@@ -326,6 +339,7 @@
         <div class="actions"><button type="button" data-action="close-screenshot-dialog">Cancel</button><button type="button" class="primary" data-action="hide-for-screenshot" autofocus>Hide QAWELL</button></div>
       </dialog>
       <div class="toast" role="status"></div>
+      <button class="restore-widget" data-action="show-widget" aria-label="Show QAWELL" title="Show QAWELL"><img src="https://qawell.dev/icon.png" alt=""></button>
       <div class="safe-area-probe" aria-hidden="true"></div>
     </div>`;
 
@@ -382,6 +396,7 @@
   syncMobileExport();
   updateWidgetPlacement();
   updateWidgetMode();
+  updateWidgetHidden();
   renderScreenshotControls();
 
   async function handleWidgetClick(event) {
@@ -431,6 +446,8 @@
     if (action === "close-notes") openPanel(null);
     if (action === "well") openWell();
     if (action === "toggle-compact") toggleCompactMode();
+    if (action === "hide-widget") hideWidget();
+    if (action === "show-widget") showWidget();
     if (action === "edit-reviewer") openReviewerEditor();
     if (action === "info") openPanel("info");
     if (action === "close-info") openPanel(null);
@@ -533,24 +550,29 @@
   async function startReview() {
     const startButton = $("[data-action=start]");
     if (startButton.disabled) return;
+    const wasEditing = editingReviewer;
     startButton.disabled = true;
-    startButton.textContent = editingReviewer ? "Saving…" : hosted.invitationToken ? "Starting invited review…" : "Starting…";
+    startButton.textContent = wasEditing ? "Saving…" : hosted.invitationToken ? "Starting invited review…" : "Starting…";
     state.reviewer = $("#reviewer").value.trim() || "Bob Sacamano";
+    persistSession();
+    toolbar.hidden = false;
+    openPanel(null);
+    toggleSelection(false);
+    setReviewerSetupMode(false);
     try {
-      if (hosted.projectKey && hosted.invitationToken && hosted.reviewId && hosted.resumeToken && !editingReviewer) await startHostedReview();
+      if (hosted.projectKey && hosted.invitationToken && hosted.reviewId && hosted.resumeToken && !wasEditing) await startHostedReview();
       else if (hosted.projectKey && hosted.invitationToken && (!hosted.reviewId || !hosted.resumeToken)) await startHostedReview();
-      else if (editingReviewer && hosted.reviewId && hosted.resumeToken) await syncReviewerName();
+      else if (wasEditing && hosted.reviewId && hosted.resumeToken) await syncReviewerName();
       persistSession();
-      toolbar.hidden = false;
-      openPanel(null);
-      toggleSelection(false);
-      toast(editingReviewer ? "Reviewer name saved" : "Review ready — use Add note when you are ready");
-      setReviewerSetupMode(false);
+      toast(wasEditing ? "Reviewer name saved" : "Review ready — use Add note when you are ready");
     } catch (error) {
-      toast(safeString(error));
+      setSyncStatus("waiting", "Reconnect needed");
+      if (hosted.invitationToken) toolbarExport.textContent = "Reconnect QA";
+      toast(`${wasEditing ? "Name saved" : "Review opened"} — QA connection needs attention`);
+      console.warn("QAWELL saved the reviewer locally but could not connect the hosted review.", error);
     } finally {
       startButton.disabled = false;
-      startButton.textContent = editingReviewer ? "Save name" : "Start review";
+      startButton.textContent = "Start review";
     }
   }
 
@@ -1481,6 +1503,7 @@
   function restoreSession() {
     try {
       state.widgetCompact = localStorage.getItem(COMPACT_KEY) === "true";
+      state.widgetHidden = localStorage.getItem(HIDDEN_KEY) === "true";
       const useLegacy = legacySessionMatchesProject();
       const identity = JSON.parse(sessionStorage.getItem(IDENTITY_KEY) || (useLegacy ? sessionStorage.getItem(LEGACY_IDENTITY_KEY) : "") || "null");
       if (identity) {
@@ -2186,6 +2209,30 @@
     updateWidgetMode();
     openPanel(null);
     toast(state.widgetCompact ? "Widget minimized" : "Widget expanded");
+  }
+
+  function hideWidget() {
+    if (aside) leaveAside();
+    closeScreenshotDialog();
+    toggleSelection(false);
+    openPanel(null);
+    state.widgetHidden = true;
+    try { localStorage.setItem(HIDDEN_KEY, "true"); }
+    catch (error) { console.warn("QAWELL could not remember that the widget is hidden.", error); }
+    updateWidgetHidden();
+  }
+
+  function showWidget() {
+    state.widgetHidden = false;
+    try { localStorage.setItem(HIDDEN_KEY, "false"); }
+    catch (error) { console.warn("QAWELL could not remember that the widget is visible.", error); }
+    updateWidgetHidden();
+    if (!state.reviewer) openPanel("setup");
+    else toast("QAWELL restored");
+  }
+
+  function updateWidgetHidden() {
+    qa.dataset.hidden = String(state.widgetHidden);
   }
 
   function updateWidgetMode() {
